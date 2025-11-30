@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>图片网格裁剪工具</title>
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' style='stop-color:%236366f1'/><stop offset='100%25' style='stop-color:%23ec4899'/></linearGradient></defs><rect width='100' height='100' rx='15' fill='url(%23bg)'/><rect x='10' y='10' width='35' height='35' rx='5' fill='white' opacity='0.9'/><rect x='55' y='10' width='35' height='35' rx='5' fill='white' opacity='0.7'/><rect x='10' y='55' width='35' height='35' rx='5' fill='white' opacity='0.7'/><rect x='55' y='55' width='35' height='35' rx='5' fill='white' opacity='0.9'/><line x1='50' y1='5' x2='50' y2='95' stroke='%23fbbf24' stroke-width='4' stroke-linecap='round'/><line x1='5' y1='50' x2='95' y2='50' stroke='%23fbbf24' stroke-width='4' stroke-linecap='round'/></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -53,164 +52,163 @@
         .result-item:hover {
             transform: scale(1.05);
         }
-        .grid-cell-label {
-            position: absolute;
-            font-size: 12px;
+        /* 修复下拉菜单样式 */
+        select option {
+            background-color: #1f2937;
             color: white;
-            background: rgba(0,0,0,0.5);
-            padding: 2px 6px;
-            border-radius: 4px;
-            pointer-events: none;
         }
     </style>
 </head>
 <body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 min-h-screen text-white">
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-4">
         <!-- 标题 -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold mb-2">🖼️ 图片网格裁剪工具</h1>
-            <p class="text-gray-300">上传图片，自由设置行×列网格，拖动网格线调整位置，一键裁剪</p>
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold mb-1">🖼️ 图片网格裁剪工具</h1>
+            <p class="text-gray-300 text-sm">上传图片，自由设置行×列网格，拖动网格线调整位置，一键裁剪</p>
         </div>
 
-        <!-- 主要内容区 -->
-        <div class="max-w-5xl mx-auto">
-            <!-- 上传区域 -->
-            <div id="uploadArea" class="bg-white/10 backdrop-blur-md rounded-2xl p-8 mb-6 border-2 border-dashed border-white/30 hover:border-white/60 transition-all cursor-pointer text-center">
-                <input type="file" id="fileInput" accept="image/*" class="hidden">
-                <div class="text-6xl mb-4">📁</div>
-                <p class="text-xl mb-2">点击或拖拽上传图片</p>
-                <p class="text-gray-400 text-sm">支持 JPG、PNG、GIF 等格式</p>
-            </div>
+        <input type="file" id="fileInput" accept="image/*" class="hidden">
 
-            <!-- 控制面板 -->
-            <div id="controlPanel" class="hidden bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6">
-                <div class="flex flex-wrap items-center justify-between gap-4">
-                    <div class="flex flex-wrap items-center gap-6">
-                        <!-- 行数设置 -->
-                        <div class="flex items-center gap-2">
-                            <label class="text-lg font-medium">行数：</label>
-                            <button id="decreaseRowBtn" class="w-10 h-10 bg-pink-500 hover:bg-pink-600 rounded-full text-xl font-bold transition-colors">−</button>
-                            <span id="rowValue" class="text-3xl font-bold w-12 text-center">3</span>
-                            <button id="increaseRowBtn" class="w-10 h-10 bg-pink-500 hover:bg-pink-600 rounded-full text-xl font-bold transition-colors">+</button>
-                        </div>
-                        <!-- 列数设置 -->
-                        <div class="flex items-center gap-2">
-                            <label class="text-lg font-medium">列数：</label>
-                            <button id="decreaseColBtn" class="w-10 h-10 bg-blue-500 hover:bg-blue-600 rounded-full text-xl font-bold transition-colors">−</button>
-                            <span id="colValue" class="text-3xl font-bold w-12 text-center">3</span>
-                            <button id="increaseColBtn" class="w-10 h-10 bg-blue-500 hover:bg-blue-600 rounded-full text-xl font-bold transition-colors">+</button>
-                        </div>
-                        <span class="text-gray-300 text-lg">= <span id="totalPieces" class="font-bold text-yellow-400">9</span> 张</span>
+        <!-- 控制面板 -->
+        <div id="controlPanel" class="bg-white/10 backdrop-blur-md rounded-xl p-4 mb-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-4">
+                    <!-- 行数设置 -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">行数：</label>
+                        <button id="decreaseRowBtn" class="w-8 h-8 bg-pink-500 hover:bg-pink-600 rounded-full text-lg font-bold transition-colors">−</button>
+                        <span id="rowValue" class="text-2xl font-bold w-8 text-center">3</span>
+                        <button id="increaseRowBtn" class="w-8 h-8 bg-pink-500 hover:bg-pink-600 rounded-full text-lg font-bold transition-colors">+</button>
                     </div>
-                    <div class="flex gap-3">
-                        <button id="resetGridBtn" class="px-4 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold transition-all">
-                            📏 重置网格
-                        </button>
-                        <button id="cropBtn" class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl">
-                            ✂️ 开始裁剪
-                        </button>
-                        <button id="resetBtn" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold transition-all">
-                            🔄 重新上传
-                        </button>
+                    <!-- 列数设置 -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">列数：</label>
+                        <button id="decreaseColBtn" class="w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full text-lg font-bold transition-colors">−</button>
+                        <span id="colValue" class="text-2xl font-bold w-8 text-center">3</span>
+                        <button id="increaseColBtn" class="w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full text-lg font-bold transition-colors">+</button>
                     </div>
+                    <span class="text-gray-300">= <span id="totalPieces" class="font-bold text-yellow-400">9</span> 张</span>
                 </div>
-                <p class="text-gray-400 text-sm mt-3">💡 提示：拖动红色横线调整行高，拖动蓝色竖线调整列宽</p>
+                <div class="flex gap-2">
+                    <button id="reUploadBtn" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-medium text-sm transition-all">
+                        📁 上传图片
+                    </button>
+                    <button id="resetGridBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-medium text-sm transition-all">
+                        📏 重置网格
+                    </button>
+                    <button id="cropBtn" class="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-lg font-bold transition-all shadow-lg">
+                        ✂️ 开始裁剪
+                    </button>
+                </div>
             </div>
+            <p class="text-gray-400 text-xs mt-2">💡 拖动红色横线调整行高，拖动蓝色竖线调整列宽</p>
+        </div>
 
-            <!-- 预览区域 -->
-            <div id="previewArea" class="hidden bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6">
-                <h2 class="text-xl font-bold mb-4">📷 图片预览 <span class="text-sm font-normal text-gray-400">（拖动网格线调整分割位置）</span></h2>
-                <div class="flex justify-center">
-                    <div id="imageContainer" class="relative inline-block max-w-full select-none">
-                        <img id="previewImage" class="max-w-full max-h-[500px] rounded-lg shadow-2xl" draggable="false">
+        <!-- 主要内容区：左右布局 -->
+        <div id="mainContent" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <!-- 左边：预览区域 -->
+            <div id="previewArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4 min-h-[400px] flex flex-col">
+                <h2 class="text-lg font-bold mb-3">📷 图片预览</h2>
+                <div class="flex-1 flex items-center justify-center bg-black/20 rounded-lg overflow-hidden cursor-pointer hover:bg-black/30 transition-colors" id="imageWrapper">
+                    <div id="uploadPlaceholder" class="text-center p-8">
+                        <div class="text-5xl mb-3 opacity-80">📁</div>
+                        <p class="text-xl font-bold mb-1">点击上传图片</p>
+                        <p class="text-sm text-gray-400">支持拖拽上传</p>
+                    </div>
+                    <div id="imageContainer" class="relative inline-block max-w-full select-none hidden">
+                        <img id="previewImage" class="max-w-full max-h-[400px] rounded-lg shadow-xl" draggable="false">
                         <div id="gridOverlay" class="grid-overlay"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- 裁剪结果 -->
-            <div id="resultArea" class="hidden bg-white/10 backdrop-blur-md rounded-2xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-xl font-bold">🎨 裁剪结果</h2>
-                    <button id="downloadAllBtn" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-medium transition-colors">
+            <!-- 右边：裁剪结果 -->
+            <div id="resultArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4 min-h-[400px]">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold">🎨 裁剪结果</h2>
+                    <button id="downloadAllBtn" class="hidden px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors">
                         📥 下载全部
                     </button>
                 </div>
-                <div id="resultGrid" class="grid gap-4"></div>
+                <div id="resultGrid" class="grid gap-2 max-h-[400px] overflow-y-auto"></div>
+                <div id="resultPlaceholder" class="text-center text-gray-400 py-20 h-full flex flex-col justify-center">
+                    <div>
+                        <p class="text-4xl mb-2">✂️</p>
+                        <p>点击"开始裁剪"查看结果</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 表情包转换区域 -->
+        <div id="emojiArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4">
+            <h2 class="text-lg font-bold mb-3">😊 表情包转换</h2>
+            
+            <div id="emojiPlaceholder" class="text-center text-gray-400 py-8">
+                <p>✂️ 请先裁剪图片</p>
             </div>
 
-            <!-- 表情包转换区域 -->
-            <div id="emojiArea" class="hidden bg-white/10 backdrop-blur-md rounded-2xl p-6 mt-6">
-                <h2 class="text-xl font-bold mb-4">😊 表情包转换</h2>
+            <div id="emojiControls" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                <!-- 格式选择 -->
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">格式：</label>
+                    <select id="emojiFormat" class="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
+                        <option value="png">PNG (透明背景)</option>
+                        <option value="gif">GIF</option>
+                        <option value="webp">WebP (推荐)</option>
+                        <option value="jpeg">JPEG</option>
+                    </select>
+                </div>
                 
-                <!-- 转换设置 -->
-                <div class="bg-white/5 rounded-xl p-4 mb-4">
-                    <div class="flex flex-wrap items-center gap-6">
-                        <!-- 格式选择 -->
-                        <div class="flex items-center gap-3">
-                            <label class="font-medium">格式：</label>
-                            <select id="emojiFormat" class="bg-white/20 text-white px-4 py-2 rounded-lg border border-white/30 focus:outline-none focus:border-white/60">
-                                <option value="png">PNG (透明背景)</option>
-                                <option value="gif">GIF</option>
-                                <option value="webp">WebP (推荐)</option>
-                                <option value="jpeg">JPEG</option>
-                            </select>
-                        </div>
-                        
-                        <!-- 尺寸选择 -->
-                        <div class="flex items-center gap-3">
-                            <label class="font-medium">尺寸：</label>
-                            <select id="emojiSize" class="bg-white/20 text-white px-4 py-2 rounded-lg border border-white/30 focus:outline-none focus:border-white/60">
-                                <option value="64">64×64 (小)</option>
-                                <option value="128" selected>128×128 (标准)</option>
-                                <option value="240">240×240 (微信)</option>
-                                <option value="300">300×300 (QQ)</option>
-                                <option value="512">512×512 (大)</option>
-                                <option value="custom">自定义</option>
-                            </select>
-                        </div>
-                        
-                        <!-- 自定义尺寸 -->
-                        <div id="customSizeArea" class="hidden flex items-center gap-2">
-                            <input type="number" id="customSize" value="200" min="16" max="1024" 
-                                   class="w-20 bg-white/20 text-white px-3 py-2 rounded-lg border border-white/30 focus:outline-none focus:border-white/60">
-                            <span class="text-gray-300">px</span>
-                        </div>
-                    </div>
+                <!-- 尺寸选择 -->
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">尺寸：</label>
+                    <select id="emojiSize" class="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
+                        <option value="128">128×128 (标准)</option>
+                        <option value="240">240×240 (微信)</option>
+                        <option value="300">300×300 (QQ)</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                
+                <!-- 自定义尺寸 -->
+                <div id="customSizeArea" class="hidden flex items-center gap-2">
+                    <input type="number" id="customSize" value="200" min="16" max="1024" 
+                           class="w-20 bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
+                    <span class="text-gray-300 text-sm">px</span>
                 </div>
 
                 <!-- 转换按钮 -->
-                <div class="flex flex-wrap gap-3 mb-4 items-center">
-                    <button id="convertEmojiBtn" class="px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl">
-                        🔄 批量转换表情包
-                    </button>
-                    <button id="downloadEmojiAllBtn" class="hidden px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 rounded-xl font-bold transition-all">
-                        📥 下载全部表情包
-                    </button>
-                    <!-- 进度显示 -->
-                    <div id="progressArea" class="hidden flex items-center gap-3">
-                        <div class="w-48 h-3 bg-white/20 rounded-full overflow-hidden">
-                            <div id="progressBar" class="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                        <span id="progressText" class="text-sm text-gray-300">0/0</span>
-                    </div>
-                </div>
+                <button id="convertEmojiBtn" class="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 rounded-lg font-bold transition-all shadow-lg">
+                    🔄 批量转换
+                </button>
+                <button id="downloadEmojiAllBtn" class="hidden px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 rounded-lg font-bold transition-all">
+                    📥 下载全部表情包
+                </button>
                 
-                <!-- 转换结果预览 -->
-                <div id="emojiResultArea" class="hidden">
-                    <h3 class="font-bold mb-3 text-gray-300">转换预览：</h3>
-                    <div id="emojiGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3"></div>
+                <!-- 进度显示 -->
+                <div id="progressArea" class="hidden flex items-center gap-2">
+                    <div class="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
+                        <div id="progressBar" class="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <span id="progressText" class="text-xs text-gray-300">0/0</span>
                 </div>
+            </div>
+            
+            <!-- 转换结果预览 -->
+            <div id="emojiResultArea" class="hidden">
+                <h3 class="font-medium mb-2 text-gray-300 text-sm">转换预览：</h3>
+                <div id="emojiGrid" class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2"></div>
             </div>
         </div>
 
         <!-- 页脚 -->
-        <div class="text-center mt-8 text-gray-400 text-sm">
+        <div class="text-center mt-4 text-gray-400 text-xs">
             <p>所有处理均在浏览器本地完成，不会上传到服务器</p>
+            <p class="mt-1">本工具由青野制作</p>
         </div>
     </div>
 
-    <!-- 隐藏的 Canvas -->
     <canvas id="hiddenCanvas" class="hidden"></canvas>
 
     <script>
@@ -219,10 +217,11 @@
         let rowCount = 3;
         let colCount = 3;
         let croppedImages = [];
+        let emojiImages = [];
         
         // 网格线位置（百分比）
-        let hLinePositions = []; // 水平线位置
-        let vLinePositions = []; // 垂直线位置
+        let hLinePositions = [];
+        let vLinePositions = [];
         
         // 拖动状态
         let isDragging = false;
@@ -230,73 +229,97 @@
         let dragIndex = -1;
 
         // DOM 元素
-        const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
-        const controlPanel = document.getElementById('controlPanel');
-        const previewArea = document.getElementById('previewArea');
-        const previewImage = document.getElementById('previewImage');
+        const imageWrapper = document.getElementById('imageWrapper');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
         const imageContainer = document.getElementById('imageContainer');
+        const previewImage = document.getElementById('previewImage');
         const gridOverlay = document.getElementById('gridOverlay');
-        const resultArea = document.getElementById('resultArea');
         const resultGrid = document.getElementById('resultGrid');
+        const resultPlaceholder = document.getElementById('resultPlaceholder');
         const rowValue = document.getElementById('rowValue');
         const colValue = document.getElementById('colValue');
         const totalPieces = document.getElementById('totalPieces');
         const hiddenCanvas = document.getElementById('hiddenCanvas');
         const ctx = hiddenCanvas.getContext('2d');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const emojiArea = document.getElementById('emojiArea');
+        const emojiPlaceholder = document.getElementById('emojiPlaceholder');
+        const emojiControls = document.getElementById('emojiControls');
+        const reUploadBtn = document.getElementById('reUploadBtn');
 
-        // 上传区域点击事件
-        uploadArea.addEventListener('click', () => fileInput.click());
+        // 预览区点击上传
+        imageWrapper.addEventListener('click', (e) => {
+            // 如果点击的是网格线或图片本身，不触发上传（防止拖动时误触）
+            if (e.target.closest('.grid-line-h') || e.target.closest('.grid-line-v')) return;
+            // 如果已经有图片，且点击的是覆盖层，可能是在操作网格，需谨慎
+            // 这里简单处理：只有点击占位符区域或者明确的上传操作才触发
+            // 为了体验，如果没图片，整个区域都触发。如果有图片，只有按钮触发。
+            if (!uploadedImage) {
+                fileInput.click();
+            }
+        });
 
         // 拖拽上传
-        uploadArea.addEventListener('dragover', (e) => {
+        imageWrapper.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadArea.classList.add('border-white', 'bg-white/20');
+            if (!uploadedImage) imageWrapper.classList.add('bg-white/10');
         });
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('border-white', 'bg-white/20');
+        imageWrapper.addEventListener('dragleave', () => {
+            if (!uploadedImage) imageWrapper.classList.remove('bg-white/10');
         });
 
-        uploadArea.addEventListener('drop', (e) => {
+        imageWrapper.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadArea.classList.remove('border-white', 'bg-white/20');
+            if (!uploadedImage) imageWrapper.classList.remove('bg-white/10');
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith('image/')) {
                 handleFile(file);
             }
         });
 
-        // 文件选择
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) handleFile(file);
         });
 
-        // 处理文件
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 uploadedImage = new Image();
                 uploadedImage.onload = () => {
                     previewImage.src = e.target.result;
-                    uploadArea.classList.add('hidden');
-                    controlPanel.classList.remove('hidden');
-                    previewArea.classList.remove('hidden');
-                    resultArea.classList.add('hidden');
+                    
+                    // 切换显示状态
+                    uploadPlaceholder.classList.add('hidden');
+                    imageContainer.classList.remove('hidden');
+                    resultPlaceholder.classList.remove('hidden');
+                    resultGrid.innerHTML = '';
+                    downloadAllBtn.classList.add('hidden');
+                    
+                    // 重置表情包区域
+                    emojiPlaceholder.classList.remove('hidden');
+                    emojiControls.classList.add('hidden');
+                    document.getElementById('emojiResultArea').classList.add('hidden');
+                    document.getElementById('downloadEmojiAllBtn').classList.add('hidden');
+
                     initGridPositions();
                     updateGrid();
+                    
+                    // 更新按钮文字
+                    reUploadBtn.innerHTML = '🔄 重新上传';
+                    reUploadBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    reUploadBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
                 };
                 uploadedImage.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        // 初始化网格线位置（均匀分布）
         function initGridPositions() {
             hLinePositions = [];
             vLinePositions = [];
-            
             for (let i = 1; i < rowCount; i++) {
                 hLinePositions.push((i / rowCount) * 100);
             }
@@ -305,62 +328,33 @@
             }
         }
 
-        // 行数调节按钮
+        // 行列调节
         document.getElementById('decreaseRowBtn').addEventListener('click', () => {
-            if (rowCount > 1) {
-                rowCount--;
-                updateDisplay();
-                initGridPositions();
-                updateGrid();
-            }
+            if (rowCount > 1) { rowCount--; updateDisplay(); initGridPositions(); updateGrid(); }
         });
-
         document.getElementById('increaseRowBtn').addEventListener('click', () => {
-            if (rowCount < 10) {
-                rowCount++;
-                updateDisplay();
-                initGridPositions();
-                updateGrid();
-            }
+            if (rowCount < 10) { rowCount++; updateDisplay(); initGridPositions(); updateGrid(); }
         });
-
-        // 列数调节按钮
         document.getElementById('decreaseColBtn').addEventListener('click', () => {
-            if (colCount > 1) {
-                colCount--;
-                updateDisplay();
-                initGridPositions();
-                updateGrid();
-            }
+            if (colCount > 1) { colCount--; updateDisplay(); initGridPositions(); updateGrid(); }
         });
-
         document.getElementById('increaseColBtn').addEventListener('click', () => {
-            if (colCount < 10) {
-                colCount++;
-                updateDisplay();
-                initGridPositions();
-                updateGrid();
-            }
+            if (colCount < 10) { colCount++; updateDisplay(); initGridPositions(); updateGrid(); }
         });
 
-        // 重置网格位置
         document.getElementById('resetGridBtn').addEventListener('click', () => {
             initGridPositions();
             updateGrid();
         });
 
-        // 更新显示
         function updateDisplay() {
             rowValue.textContent = rowCount;
             colValue.textContent = colCount;
             totalPieces.textContent = rowCount * colCount;
         }
 
-        // 更新网格线
         function updateGrid() {
             gridOverlay.innerHTML = '';
-            
-            // 水平线
             hLinePositions.forEach((pos, index) => {
                 const line = document.createElement('div');
                 line.className = 'grid-line-h';
@@ -371,8 +365,6 @@
                 line.addEventListener('touchstart', startDrag, { passive: false });
                 gridOverlay.appendChild(line);
             });
-            
-            // 垂直线
             vLinePositions.forEach((pos, index) => {
                 const line = document.createElement('div');
                 line.className = 'grid-line-v';
@@ -385,7 +377,6 @@
             });
         }
 
-        // 开始拖动
         function startDrag(e) {
             e.preventDefault();
             isDragging = true;
@@ -395,13 +386,10 @@
             document.body.style.cursor = dragTarget.dataset.type === 'h' ? 'row-resize' : 'col-resize';
         }
 
-        // 拖动中
         function onDrag(e) {
             if (!isDragging || !dragTarget) return;
-            
             const rect = imageContainer.getBoundingClientRect();
             let clientX, clientY;
-            
             if (e.touches) {
                 clientX = e.touches[0].clientX;
                 clientY = e.touches[0].clientY;
@@ -411,31 +399,22 @@
             }
             
             if (dragTarget.dataset.type === 'h') {
-                // 水平线
                 let newPos = ((clientY - rect.top) / rect.height) * 100;
-                
-                // 限制范围
                 const minPos = dragIndex === 0 ? 5 : hLinePositions[dragIndex - 1] + 5;
                 const maxPos = dragIndex === hLinePositions.length - 1 ? 95 : hLinePositions[dragIndex + 1] - 5;
                 newPos = Math.max(minPos, Math.min(maxPos, newPos));
-                
                 hLinePositions[dragIndex] = newPos;
                 dragTarget.style.top = `${newPos}%`;
             } else {
-                // 垂直线
                 let newPos = ((clientX - rect.left) / rect.width) * 100;
-                
-                // 限制范围
                 const minPos = dragIndex === 0 ? 5 : vLinePositions[dragIndex - 1] + 5;
                 const maxPos = dragIndex === vLinePositions.length - 1 ? 95 : vLinePositions[dragIndex + 1] - 5;
                 newPos = Math.max(minPos, Math.min(maxPos, newPos));
-                
                 vLinePositions[dragIndex] = newPos;
                 dragTarget.style.left = `${newPos}%`;
             }
         }
 
-        // 结束拖动
         function endDrag() {
             if (isDragging && dragTarget) {
                 dragTarget.classList.remove('dragging');
@@ -446,31 +425,26 @@
             document.body.style.cursor = '';
         }
 
-        // 全局鼠标/触摸事件
         document.addEventListener('mousemove', onDrag);
         document.addEventListener('mouseup', endDrag);
         document.addEventListener('touchmove', onDrag, { passive: false });
         document.addEventListener('touchend', endDrag);
 
-        // 裁剪按钮
+        // 裁剪
         document.getElementById('cropBtn').addEventListener('click', cropImage);
 
-        // 裁剪图片
         function cropImage() {
             if (!uploadedImage) return;
-
             croppedImages = [];
-            
-            // 构建分割点数组（包含0和100）
             const hPoints = [0, ...hLinePositions, 100];
             const vPoints = [0, ...vLinePositions, 100];
 
             resultGrid.innerHTML = '';
             resultGrid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+            resultPlaceholder.classList.add('hidden');
 
             for (let row = 0; row < rowCount; row++) {
                 for (let col = 0; col < colCount; col++) {
-                    // 计算每块的位置和大小（基于百分比）
                     const x = (vPoints[col] / 100) * uploadedImage.width;
                     const y = (hPoints[row] / 100) * uploadedImage.height;
                     const width = ((vPoints[col + 1] - vPoints[col]) / 100) * uploadedImage.width;
@@ -478,37 +452,31 @@
 
                     hiddenCanvas.width = width;
                     hiddenCanvas.height = height;
-                    
-                    ctx.drawImage(
-                        uploadedImage,
-                        x, y, width, height,
-                        0, 0, width, height
-                    );
+                    ctx.drawImage(uploadedImage, x, y, width, height, 0, 0, width, height);
 
                     const dataUrl = hiddenCanvas.toDataURL('image/png');
-                    croppedImages.push({
-                        dataUrl,
-                        name: `piece_${row + 1}_${col + 1}.png`
-                    });
+                    croppedImages.push({ dataUrl, name: `piece_${row + 1}_${col + 1}.png` });
 
-                    // 创建结果项
                     const item = document.createElement('div');
-                    item.className = 'result-item bg-white/5 rounded-lg p-2 text-center';
+                    item.className = 'result-item bg-white/5 rounded-lg p-1 text-center cursor-pointer';
                     item.innerHTML = `
-                        <img src="${dataUrl}" class="w-full rounded-md mb-2 cursor-pointer" 
-                             onclick="downloadSingle(${croppedImages.length - 1})" 
-                             title="点击下载">
-                        <p class="text-xs text-gray-400">${row + 1}-${col + 1}</p>
+                        <img src="${dataUrl}" class="w-full rounded" title="点击下载">
+                        <p class="text-xs text-gray-400 mt-1">${row + 1}-${col + 1}</p>
                     `;
+                    item.onclick = () => downloadSingle(croppedImages.length - 1);
                     resultGrid.appendChild(item);
                 }
             }
 
-            resultArea.classList.remove('hidden');
-            resultArea.scrollIntoView({ behavior: 'smooth' });
+            downloadAllBtn.classList.remove('hidden');
+            
+            // 激活表情包区域
+            emojiPlaceholder.classList.add('hidden');
+            emojiControls.classList.remove('hidden');
+            document.getElementById('emojiResultArea').classList.add('hidden');
+            document.getElementById('downloadEmojiAllBtn').classList.add('hidden');
         }
 
-        // 下载单张
         function downloadSingle(index) {
             const link = document.createElement('a');
             link.download = croppedImages[index].name;
@@ -516,8 +484,7 @@
             link.click();
         }
 
-        // 下载全部
-        document.getElementById('downloadAllBtn').addEventListener('click', () => {
+        downloadAllBtn.addEventListener('click', () => {
             croppedImages.forEach((img, index) => {
                 setTimeout(() => {
                     const link = document.createElement('a');
@@ -528,26 +495,15 @@
             });
         });
 
-        // 重置
-        document.getElementById('resetBtn').addEventListener('click', () => {
-            uploadedImage = null;
-            croppedImages = [];
-            emojiImages = [];
-            fileInput.value = '';
-            uploadArea.classList.remove('hidden');
-            controlPanel.classList.add('hidden');
-            previewArea.classList.add('hidden');
-            resultArea.classList.add('hidden');
-            emojiArea.classList.add('hidden');
-            rowCount = 3;
-            colCount = 3;
-            updateDisplay();
+        // 重新上传按钮逻辑
+        const reUploadBtn = document.getElementById('reUploadBtn');
+        reUploadBtn.addEventListener('click', () => {
+            fileInput.click();
         });
 
-        // ==================== 表情包转换功能 ====================
-        
-        let emojiImages = [];
-        const emojiArea = document.getElementById('emojiArea');
+
+
+        // 表情包转换
         const emojiFormat = document.getElementById('emojiFormat');
         const emojiSize = document.getElementById('emojiSize');
         const customSizeArea = document.getElementById('customSizeArea');
@@ -555,37 +511,15 @@
         const emojiGrid = document.getElementById('emojiGrid');
         const emojiResultArea = document.getElementById('emojiResultArea');
         const downloadEmojiAllBtn = document.getElementById('downloadEmojiAllBtn');
-
-        // 尺寸选择变化
-        emojiSize.addEventListener('change', () => {
-            if (emojiSize.value === 'custom') {
-                customSizeArea.classList.remove('hidden');
-            } else {
-                customSizeArea.classList.add('hidden');
-            }
-        });
-
-        // 修改裁剪函数，裁剪完成后显示表情包区域
-        const originalCropImage = cropImage;
-        cropImage = function() {
-            originalCropImage();
-            if (croppedImages.length > 0) {
-                emojiArea.classList.remove('hidden');
-                emojiResultArea.classList.add('hidden');
-                downloadEmojiAllBtn.classList.add('hidden');
-            }
-        };
-        document.getElementById('cropBtn').removeEventListener('click', originalCropImage);
-        document.getElementById('cropBtn').addEventListener('click', cropImage);
-
-        // 批量转换表情包
-        document.getElementById('convertEmojiBtn').addEventListener('click', convertToEmoji);
-
-        // 进度相关元素
         const progressArea = document.getElementById('progressArea');
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
-        const convertEmojiBtn = document.getElementById('convertEmojiBtn');
+
+        emojiSize.addEventListener('change', () => {
+            customSizeArea.classList.toggle('hidden', emojiSize.value !== 'custom');
+        });
+
+        document.getElementById('convertEmojiBtn').addEventListener('click', convertToEmoji);
 
         async function convertToEmoji() {
             if (croppedImages.length === 0) return;
@@ -593,121 +527,74 @@
             emojiImages = [];
             emojiGrid.innerHTML = '';
             
-            // 获取设置
             const format = emojiFormat.value;
             let size = parseInt(emojiSize.value);
             if (emojiSize.value === 'custom') {
                 size = parseInt(customSize.value) || 128;
             }
 
-            // 确定 MIME 类型
             let mimeType = 'image/png';
             let extension = 'png';
             switch (format) {
-                case 'gif':
-                    mimeType = 'image/gif';
-                    extension = 'gif';
-                    break;
-                case 'webp':
-                    mimeType = 'image/webp';
-                    extension = 'webp';
-                    break;
-                case 'jpeg':
-                    mimeType = 'image/jpeg';
-                    extension = 'jpg';
-                    break;
+                case 'gif': mimeType = 'image/gif'; extension = 'gif'; break;
+                case 'webp': mimeType = 'image/webp'; extension = 'webp'; break;
+                case 'jpeg': mimeType = 'image/jpeg'; extension = 'jpg'; break;
             }
 
-            // 显示进度
             progressArea.classList.remove('hidden');
             progressBar.style.width = '0%';
             progressText.textContent = `0/${croppedImages.length}`;
             downloadEmojiAllBtn.classList.add('hidden');
-            convertEmojiBtn.disabled = true;
-            convertEmojiBtn.classList.add('opacity-50');
-
             emojiResultArea.classList.remove('hidden');
 
-            // 逐个处理图片
             for (let index = 0; index < croppedImages.length; index++) {
                 const img = croppedImages[index];
                 
-                try {
-                    // 创建最终表情包
-                    await new Promise((resolve) => {
-                        const tempImg = new Image();
-                        tempImg.onload = () => {
-                            // 创建正方形 canvas
-                            hiddenCanvas.width = size;
-                            hiddenCanvas.height = size;
-                            
-                            // 清空画布（透明背景）
-                            ctx.clearRect(0, 0, size, size);
-                            
-                            // 如果是 JPEG，填充白色背景
-                            if (format === 'jpeg') {
-                                ctx.fillStyle = '#ffffff';
-                                ctx.fillRect(0, 0, size, size);
-                            }
+                await new Promise((resolve) => {
+                    const tempImg = new Image();
+                    tempImg.onload = () => {
+                        hiddenCanvas.width = size;
+                        hiddenCanvas.height = size;
+                        ctx.clearRect(0, 0, size, size);
+                        
+                        if (format === 'jpeg') {
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0, 0, size, size);
+                        }
 
-                            // 计算缩放和居中
-                            const srcWidth = tempImg.width;
-                            const srcHeight = tempImg.height;
-                            const scale = Math.min(size / srcWidth, size / srcHeight);
-                            const newWidth = srcWidth * scale;
-                            const newHeight = srcHeight * scale;
-                            const offsetX = (size - newWidth) / 2;
-                            const offsetY = (size - newHeight) / 2;
+                        const scale = Math.min(size / tempImg.width, size / tempImg.height);
+                        const newWidth = tempImg.width * scale;
+                        const newHeight = tempImg.height * scale;
+                        const offsetX = (size - newWidth) / 2;
+                        const offsetY = (size - newHeight) / 2;
 
-                            // 绘制图片（保持比例，居中）
-                            ctx.drawImage(tempImg, offsetX, offsetY, newWidth, newHeight);
+                        ctx.drawImage(tempImg, offsetX, offsetY, newWidth, newHeight);
 
-                            // 导出
-                            const dataUrl = hiddenCanvas.toDataURL(mimeType);
-                            emojiImages.push({
-                                dataUrl,
-                                name: `emoji_${index + 1}.${extension}`
-                            });
+                        const dataUrl = hiddenCanvas.toDataURL(mimeType);
+                        emojiImages.push({ dataUrl, name: `emoji_${index + 1}.${extension}` });
 
-                            // 创建预览项
-                            const item = document.createElement('div');
-                            item.className = 'bg-white/10 rounded-lg p-2 text-center cursor-pointer hover:bg-white/20 transition-all';
-                            item.style.background = 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 16px 16px';
-                            item.innerHTML = `
-                                <img src="${dataUrl}" class="w-full rounded-md">
-                                <p class="text-xs text-gray-400 mt-1">${index + 1}</p>
-                            `;
-                            const currentIndex = emojiImages.length - 1;
-                            item.onclick = () => downloadEmojiSingle(currentIndex);
-                            emojiGrid.appendChild(item);
+                        const item = document.createElement('div');
+                        item.className = 'bg-white/10 rounded p-1 text-center cursor-pointer hover:bg-white/20 transition-all';
+                        item.style.background = 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 12px 12px';
+                        item.innerHTML = `<img src="${dataUrl}" class="w-full rounded">`;
+                        const currentIndex = emojiImages.length - 1;
+                        item.onclick = () => downloadEmojiSingle(currentIndex);
+                        emojiGrid.appendChild(item);
 
-                            resolve();
-                        };
-                        tempImg.src = img.dataUrl;
-                    });
+                        resolve();
+                    };
+                    tempImg.src = img.dataUrl;
+                });
 
-                    // 更新进度
-                    const progress = ((index + 1) / croppedImages.length) * 100;
-                    progressBar.style.width = `${progress}%`;
-                    progressText.textContent = `${index + 1}/${croppedImages.length}`;
-
-                } catch (err) {
-                    console.error('处理图片失败:', err);
-                }
+                const progress = ((index + 1) / croppedImages.length) * 100;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${index + 1}/${croppedImages.length}`;
             }
 
-            // 完成
             downloadEmojiAllBtn.classList.remove('hidden');
-            convertEmojiBtn.disabled = false;
-            convertEmojiBtn.classList.remove('opacity-50');
-            
-            // 延迟隐藏进度条
-            setTimeout(() => {
-                progressArea.classList.add('hidden');
-            }, 1000);
+            setTimeout(() => progressArea.classList.add('hidden'), 1000);
         }
 
-        // 下载单个表情包
         function downloadEmojiSingle(index) {
             const link = document.createElement('a');
             link.download = emojiImages[index].name;
@@ -715,7 +602,6 @@
             link.click();
         }
 
-        // 下载全部表情包
         downloadEmojiAllBtn.addEventListener('click', () => {
             emojiImages.forEach((img, index) => {
                 setTimeout(() => {
