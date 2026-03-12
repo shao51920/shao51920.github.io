@@ -1,614 +1,757 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片网格裁剪工具</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' style='stop-color:%236366f1'/><stop offset='100%25' style='stop-color:%23ec4899'/></linearGradient></defs><rect width='100' height='100' rx='15' fill='url(%23bg)'/><rect x='10' y='10' width='35' height='35' rx='5' fill='white' opacity='0.9'/><rect x='55' y='10' width='35' height='35' rx='5' fill='white' opacity='0.7'/><rect x='10' y='55' width='35' height='35' rx='5' fill='white' opacity='0.7'/><rect x='55' y='55' width='35' height='35' rx='5' fill='white' opacity='0.9'/><line x1='50' y1='5' x2='50' y2='95' stroke='%23fbbf24' stroke-width='4' stroke-linecap='round'/><line x1='5' y1='50' x2='95' y2='50' stroke='%23fbbf24' stroke-width='4' stroke-linecap='round'/></svg>">
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style>
-        .grid-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        .grid-line-h {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: rgba(255,50,50,0.9);
-            cursor: row-resize;
-            transform: translateY(-50%);
-            transition: all 0.2s;
-            z-index: 10;
-        }
-        .grid-line-h:hover, .grid-line-h.dragging {
-            background: rgba(255,220,0,1);
-            height: 4px;
-            box-shadow: 0 0 8px rgba(255,220,0,0.8);
-        }
-        .grid-line-v {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            width: 2px;
-            background: rgba(50,150,255,0.9);
-            cursor: col-resize;
-            transform: translateX(-50%);
-            transition: all 0.2s;
-            z-index: 10;
-        }
-        .grid-line-v:hover, .grid-line-v.dragging {
-            background: rgba(255,220,0,1);
-            width: 4px;
-            box-shadow: 0 0 8px rgba(255,220,0,0.8);
-        }
-        .result-item {
-            transition: transform 0.2s;
-        }
-        .result-item:hover {
-            transform: scale(1.05);
-        }
-        /* 修复下拉菜单样式 */
-        select option {
-            background-color: #1f2937;
-            color: white;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>觉醒 · Awakening</title>
+  <meta name="description" content="觉醒是一场从内部燃起的革命——不是破坏，而是重生。欢迎踏入这片光的领地。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700;900&family=Cinzel:wght@400;700&family=Inter:wght@200;300;400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #f0d080;
+      --gold-dark: #8a6a1a;
+      --deep: #040209;
+      --void: #080414;
+      --purple-deep: #120820;
+      --white-soft: rgba(255,255,255,0.88);
+      --glow-gold: 0 0 30px rgba(201,168,76,0.6), 0 0 80px rgba(201,168,76,0.2);
+      --glow-white: 0 0 20px rgba(255,255,255,0.4);
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--void);
+      color: var(--white-soft);
+      font-family: 'Noto Serif SC', serif;
+      cursor: none;
+    }
+
+    /* ── 自定义光标 ── */
+    #cursor {
+      position: fixed;
+      top: 0; left: 0;
+      width: 12px; height: 12px;
+      background: var(--gold-light);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      mix-blend-mode: screen;
+      transition: transform 0.1s ease, opacity 0.2s;
+      transform: translate(-50%, -50%);
+      box-shadow: var(--glow-gold);
+    }
+    #cursor-trail {
+      position: fixed;
+      top: 0; left: 0;
+      width: 36px; height: 36px;
+      border: 1px solid rgba(201,168,76,0.4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9998;
+      transform: translate(-50%, -50%);
+      transition: transform 0.25s ease, opacity 0.3s;
+      opacity: 0.6;
+    }
+
+    /* ── Canvas 星域 ── */
+    #starfield {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      display: block;
+    }
+
+    /* ── 神圣光晕背景 ── */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 1;
+      animation: orbFloat 12s ease-in-out infinite alternate;
+    }
+    .bg-orb-1 {
+      width: 60vw; height: 60vw;
+      top: -20vw; left: -10vw;
+      background: radial-gradient(circle, rgba(80,20,160,0.35) 0%, transparent 70%);
+      animation-delay: 0s;
+    }
+    .bg-orb-2 {
+      width: 50vw; height: 50vw;
+      bottom: -15vw; right: -10vw;
+      background: radial-gradient(circle, rgba(180,120,20,0.25) 0%, transparent 70%);
+      animation-delay: -5s;
+    }
+    .bg-orb-3 {
+      width: 40vw; height: 40vw;
+      top: 30%; left: 30%;
+      background: radial-gradient(circle, rgba(60,10,120,0.2) 0%, transparent 70%);
+      animation-delay: -3s;
+      animation-duration: 16s;
+    }
+    @keyframes orbFloat {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(3vw, 5vh) scale(1.08); }
+    }
+
+    /* ── 主内容容器 ── */
+    #main {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    /* ── 顶部标记 ── */
+    .label-top {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.6rem, 1.5vw, 0.85rem);
+      letter-spacing: 0.5em;
+      color: var(--gold);
+      text-transform: uppercase;
+      opacity: 0;
+      animation: fadeSlideDown 1.2s ease 0.5s forwards;
+      margin-bottom: 2rem;
+    }
+
+    /* ── 神圣符文圆环 ── */
+    .rune-ring-wrapper {
+      position: relative;
+      width: clamp(140px, 22vw, 240px);
+      height: clamp(140px, 22vw, 240px);
+      margin-bottom: 2.5rem;
+      opacity: 0;
+      animation: fadeScale 1.5s ease 0.8s forwards;
+    }
+    .rune-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.5);
+      animation: spinSlow 20s linear infinite;
+    }
+    .rune-ring::before {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      border: 1px dashed rgba(201,168,76,0.3);
+      animation: spinSlow 30s linear infinite reverse;
+    }
+    .rune-ring::after {
+      content: '';
+      position: absolute;
+      inset: 20px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.2);
+    }
+    .rune-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rune-eye {
+      width: 44%;
+      height: 44%;
+      position: relative;
+    }
+    .rune-eye svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 12px rgba(201,168,76,0.8)) drop-shadow(0 0 30px rgba(201,168,76,0.4));
+    }
+    .rune-dots {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+    }
+    .rune-dot {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      background: var(--gold);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--gold);
+      transform-origin: 50% calc(50% + clamp(65px, 10vw, 110px));
+    }
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── 主标题 ── */
+    .title-zh {
+      font-family: 'Noto Serif SC', serif;
+      font-weight: 900;
+      font-size: clamp(4rem, 12vw, 10rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #f0d080 0%, #c9a84c 40%, #ffffff 60%, #c9a84c 80%, #8a6a1a 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-size: 200% 200%;
+      animation: shimmerTitle 4s ease-in-out infinite alternate, fadeSlideUp 1.2s ease 1.2s both;
+      margin-bottom: 0.4rem;
+      text-shadow: none;
+      position: relative;
+    }
+    .title-zh::after {
+      content: '觉醒';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #f0d080 0%, #c9a84c 40%, #ffffff 60%, #c9a84c 80%, #8a6a1a 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: blur(20px);
+      opacity: 0.5;
+      z-index: -1;
+    }
+    @keyframes shimmerTitle {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 100% 100%; }
+    }
+
+    .title-en {
+      font-family: 'Cinzel', serif;
+      font-weight: 400;
+      font-size: clamp(0.9rem, 2.5vw, 1.6rem);
+      letter-spacing: 0.6em;
+      color: var(--gold);
+      opacity: 0;
+      text-transform: uppercase;
+      animation: fadeSlideUp 1.2s ease 1.6s forwards;
+      margin-bottom: 2.8rem;
+    }
+
+    /* ── 横线分隔 ── */
+    .divider {
+      width: clamp(60px, 12vw, 140px);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 0 auto 2.2rem;
+      opacity: 0;
+      animation: fadeIn 1s ease 2s forwards;
+    }
+
+    /* ── 打字机副标题 ── */
+    .subtitle {
+      font-family: 'Noto Serif SC', serif;
+      font-weight: 300;
+      font-size: clamp(0.85rem, 2vw, 1.15rem);
+      line-height: 2;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: 0.18em;
+      max-width: 520px;
+      opacity: 0;
+      animation: fadeIn 1s ease 2.3s forwards;
+      min-height: 3.5em;
+    }
+    .typewriter-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1.1em;
+      background: var(--gold);
+      vertical-align: middle;
+      margin-left: 2px;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── 进入按钮 ── */
+    .enter-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 3rem;
+      padding: 0.85rem 2.8rem;
+      border: 1px solid rgba(201,168,76,0.5);
+      background: transparent;
+      color: var(--gold-light);
+      font-family: 'Noto Serif SC', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.3em;
+      cursor: none;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      animation: fadeSlideUp 1s ease 3s forwards;
+      transition: color 0.4s, border-color 0.4s, transform 0.3s;
+      text-decoration: none;
+    }
+    .enter-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.6s ease;
+    }
+    .enter-btn:hover::before {
+      transform: translateX(100%);
+    }
+    .enter-btn:hover {
+      border-color: var(--gold);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(201,168,76,0.2), 0 0 20px rgba(201,168,76,0.1);
+    }
+    .btn-arrow {
+      font-size: 1.1rem;
+      transition: transform 0.3s;
+    }
+    .enter-btn:hover .btn-arrow {
+      transform: translateX(5px);
+    }
+
+    /* ── 底部标签 ── */
+    .footer-tags {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 2.5rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 200;
+      letter-spacing: 0.35em;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+      z-index: 10;
+      opacity: 0;
+      animation: fadeIn 1.5s ease 3.5s forwards;
+    }
+    .footer-tags span::before {
+      content: '·';
+      margin-right: 1rem;
+      color: var(--gold-dark);
+    }
+
+    /* ── 侧边光线 ── */
+    .side-light {
+      position: fixed;
+      top: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent 0%, rgba(201,168,76,0.3) 30%, rgba(201,168,76,0.6) 50%, rgba(201,168,76,0.3) 70%, transparent 100%);
+      z-index: 2;
+      opacity: 0;
+      animation: fadeIn 2s ease 1s forwards;
+    }
+    .side-light-left { left: 5vw; }
+    .side-light-right { right: 5vw; }
+
+    /* ── 角落纹饰 ── */
+    .corner {
+      position: fixed;
+      width: 60px; height: 60px;
+      z-index: 10;
+      opacity: 0;
+      animation: fadeIn 1.5s ease 1s forwards;
+    }
+    .corner svg { width: 100%; height: 100%; }
+    .corner-tl { top: 2rem; left: 2rem; }
+    .corner-tr { top: 2rem; right: 2rem; transform: scaleX(-1); }
+    .corner-bl { bottom: 2rem; left: 2rem; transform: scaleY(-1); }
+    .corner-br { bottom: 2rem; right: 2rem; transform: scale(-1); }
+
+    /* ── 通用动画 ── */
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeScale {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    /* ── 响应式 ── */
+    @media (max-width: 600px) {
+      .side-light, .corner, .footer-tags { display: none; }
+      .title-zh { font-size: clamp(4rem, 20vw, 6rem); }
+    }
+  </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 min-h-screen text-white">
-    <div class="container mx-auto px-4 py-4">
-        <!-- 标题 -->
-        <div class="text-center mb-4">
-            <h1 class="text-2xl font-bold mb-1">🖼️ 图片网格裁剪工具</h1>
-            <p class="text-gray-300 text-sm">上传图片，自由设置行×列网格，拖动网格线调整位置，一键裁剪</p>
+<body>
+
+  <!-- 光标 -->
+  <div id="cursor"></div>
+  <div id="cursor-trail"></div>
+
+  <!-- 星空画布 -->
+  <canvas id="starfield"></canvas>
+
+  <!-- 背景光晕 -->
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+
+  <!-- 侧边光线 -->
+  <div class="side-light side-light-left"></div>
+  <div class="side-light side-light-right"></div>
+
+  <!-- 角落纹饰 -->
+  <div class="corner corner-tl">
+    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 58 L2 2 L58 2" stroke="rgba(201,168,76,0.5)" stroke-width="1"/>
+      <path d="M2 30 L12 2" stroke="rgba(201,168,76,0.3)" stroke-width="0.5"/>
+      <circle cx="2" cy="2" r="3" fill="rgba(201,168,76,0.6)"/>
+    </svg>
+  </div>
+  <div class="corner corner-tr">
+    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 58 L2 2 L58 2" stroke="rgba(201,168,76,0.5)" stroke-width="1"/>
+      <path d="M2 30 L12 2" stroke="rgba(201,168,76,0.3)" stroke-width="0.5"/>
+      <circle cx="2" cy="2" r="3" fill="rgba(201,168,76,0.6)"/>
+    </svg>
+  </div>
+  <div class="corner corner-bl">
+    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 58 L2 2 L58 2" stroke="rgba(201,168,76,0.5)" stroke-width="1"/>
+      <path d="M2 30 L12 2" stroke="rgba(201,168,76,0.3)" stroke-width="0.5"/>
+      <circle cx="2" cy="2" r="3" fill="rgba(201,168,76,0.6)"/>
+    </svg>
+  </div>
+  <div class="corner corner-br">
+    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 58 L2 2 L58 2" stroke="rgba(201,168,76,0.5)" stroke-width="1"/>
+      <path d="M2 30 L12 2" stroke="rgba(201,168,76,0.3)" stroke-width="0.5"/>
+      <circle cx="2" cy="2" r="3" fill="rgba(201,168,76,0.6)"/>
+    </svg>
+  </div>
+
+  <!-- 主内容 -->
+  <main id="main">
+    <p class="label-top">The Light Within · 内在之光</p>
+
+    <!-- 神圣符文环 -->
+    <div class="rune-ring-wrapper" id="runeRing">
+      <div class="rune-ring"></div>
+      <div class="rune-dots" id="runeDots"></div>
+      <div class="rune-inner">
+        <div class="rune-eye">
+          <!-- 第三只眼 SVG -->
+          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- 外眼轮廓 -->
+            <path d="M10 50 Q50 10 90 50 Q50 90 10 50 Z" stroke="rgba(201,168,76,0.9)" stroke-width="1.5" fill="none"/>
+            <!-- 虹膜 -->
+            <circle cx="50" cy="50" r="18" stroke="rgba(201,168,76,0.7)" stroke-width="1" fill="none"/>
+            <!-- 瞳孔 -->
+            <circle cx="50" cy="50" r="8" fill="rgba(201,168,76,0.9)">
+              <animate attributeName="r" values="8;10;8" dur="3s" repeatCount="indefinite"/>
+              <animate attributeName="fill-opacity" values="0.9;1;0.9" dur="3s" repeatCount="indefinite"/>
+            </circle>
+            <!-- 光芒 -->
+            <line x1="50" y1="25" x2="50" y2="18" stroke="rgba(201,168,76,0.5)" stroke-width="0.8">
+              <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+            </line>
+            <line x1="50" y1="75" x2="50" y2="82" stroke="rgba(201,168,76,0.5)" stroke-width="0.8">
+              <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+            </line>
+            <line x1="28" y1="28" x2="23" y2="23" stroke="rgba(201,168,76,0.4)" stroke-width="0.8"/>
+            <line x1="72" y1="28" x2="77" y2="23" stroke="rgba(201,168,76,0.4)" stroke-width="0.8"/>
+            <line x1="28" y1="72" x2="23" y2="77" stroke="rgba(201,168,76,0.4)" stroke-width="0.8"/>
+            <line x1="72" y1="72" x2="77" y2="77" stroke="rgba(201,168,76,0.4)" stroke-width="0.8"/>
+          </svg>
         </div>
-
-        <input type="file" id="fileInput" accept="image/*" class="hidden">
-
-        <!-- 控制面板 -->
-        <div id="controlPanel" class="bg-white/10 backdrop-blur-md rounded-xl p-4 mb-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex flex-wrap items-center gap-4">
-                    <!-- 行数设置 -->
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm font-medium">行数：</label>
-                        <button id="decreaseRowBtn" class="w-8 h-8 bg-pink-500 hover:bg-pink-600 rounded-full text-lg font-bold transition-colors">−</button>
-                        <span id="rowValue" class="text-2xl font-bold w-8 text-center">3</span>
-                        <button id="increaseRowBtn" class="w-8 h-8 bg-pink-500 hover:bg-pink-600 rounded-full text-lg font-bold transition-colors">+</button>
-                    </div>
-                    <!-- 列数设置 -->
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm font-medium">列数：</label>
-                        <button id="decreaseColBtn" class="w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full text-lg font-bold transition-colors">−</button>
-                        <span id="colValue" class="text-2xl font-bold w-8 text-center">3</span>
-                        <button id="increaseColBtn" class="w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full text-lg font-bold transition-colors">+</button>
-                    </div>
-                    <span class="text-gray-300">= <span id="totalPieces" class="font-bold text-yellow-400">9</span> 张</span>
-                </div>
-                <div class="flex gap-2">
-                    <button id="reUploadBtn" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-medium text-sm transition-all">
-                        📁 上传图片
-                    </button>
-                    <button id="resetGridBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-medium text-sm transition-all">
-                        📏 重置网格
-                    </button>
-                    <button id="cropBtn" class="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-lg font-bold transition-all shadow-lg">
-                        ✂️ 开始裁剪
-                    </button>
-                </div>
-            </div>
-            <p class="text-gray-400 text-xs mt-2">💡 拖动红色横线调整行高，拖动蓝色竖线调整列宽</p>
-        </div>
-
-        <!-- 主要内容区：左右布局 -->
-        <div id="mainContent" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <!-- 左边：预览区域 -->
-            <div id="previewArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4 min-h-[400px] flex flex-col">
-                <h2 class="text-lg font-bold mb-3">📷 图片预览</h2>
-                <div class="flex-1 flex items-center justify-center bg-black/20 rounded-lg overflow-hidden cursor-pointer hover:bg-black/30 transition-colors" id="imageWrapper">
-                    <div id="uploadPlaceholder" class="text-center p-8">
-                        <div class="text-5xl mb-3 opacity-80">📁</div>
-                        <p class="text-xl font-bold mb-1">点击上传图片</p>
-                        <p class="text-sm text-gray-400">支持拖拽上传</p>
-                    </div>
-                    <div id="imageContainer" class="relative inline-block max-w-full select-none hidden">
-                        <img id="previewImage" class="max-w-full max-h-[400px] rounded-lg shadow-xl" draggable="false">
-                        <div id="gridOverlay" class="grid-overlay"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 右边：裁剪结果 -->
-            <div id="resultArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4 min-h-[400px]">
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-lg font-bold">🎨 裁剪结果</h2>
-                    <button id="downloadAllBtn" class="hidden px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors">
-                        📥 下载全部
-                    </button>
-                </div>
-                <div id="resultGrid" class="grid gap-2 max-h-[400px] overflow-y-auto"></div>
-                <div id="resultPlaceholder" class="text-center text-gray-400 py-20 h-full flex flex-col justify-center">
-                    <div>
-                        <p class="text-4xl mb-2">✂️</p>
-                        <p>点击"开始裁剪"查看结果</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 表情包转换区域 -->
-        <div id="emojiArea" class="bg-white/10 backdrop-blur-md rounded-xl p-4">
-            <h2 class="text-lg font-bold mb-3">😊 表情包转换</h2>
-            
-            <div id="emojiPlaceholder" class="text-center text-gray-400 py-8">
-                <p>✂️ 请先裁剪图片</p>
-            </div>
-
-            <div id="emojiControls" class="hidden flex flex-wrap items-center gap-4 mb-4">
-                <!-- 格式选择 -->
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">格式：</label>
-                    <select id="emojiFormat" class="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
-                        <option value="png">PNG (透明背景)</option>
-                        <option value="gif">GIF</option>
-                        <option value="webp">WebP (推荐)</option>
-                        <option value="jpeg">JPEG</option>
-                    </select>
-                </div>
-                
-                <!-- 尺寸选择 -->
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium">尺寸：</label>
-                    <select id="emojiSize" class="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
-                        <option value="128">128×128 (标准)</option>
-                        <option value="240">240×240 (微信)</option>
-                        <option value="300">300×300 (QQ)</option>
-                        <option value="custom">自定义</option>
-                    </select>
-                </div>
-                
-                <!-- 自定义尺寸 -->
-                <div id="customSizeArea" class="hidden flex items-center gap-2">
-                    <input type="number" id="customSize" value="200" min="16" max="1024" 
-                           class="w-20 bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-300 text-sm">px</span>
-                </div>
-
-                <!-- 转换按钮 -->
-                <button id="convertEmojiBtn" class="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 rounded-lg font-bold transition-all shadow-lg">
-                    🔄 批量转换
-                </button>
-                <button id="downloadEmojiAllBtn" class="hidden px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 rounded-lg font-bold transition-all">
-                    📥 下载全部表情包
-                </button>
-                
-                <!-- 进度显示 -->
-                <div id="progressArea" class="hidden flex items-center gap-2">
-                    <div class="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
-                        <div id="progressBar" class="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <span id="progressText" class="text-xs text-gray-300">0/0</span>
-                </div>
-            </div>
-            
-            <!-- 转换结果预览 -->
-            <div id="emojiResultArea" class="hidden">
-                <h3 class="font-medium mb-2 text-gray-300 text-sm">转换预览：</h3>
-                <div id="emojiGrid" class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2"></div>
-            </div>
-        </div>
-
-        <!-- 页脚 -->
-        <div class="text-center mt-4 text-gray-400 text-xs">
-            <p>所有处理均在浏览器本地完成，不会上传到服务器</p>
-            <p class="mt-1">本工具由青野制作</p>
-        </div>
+      </div>
     </div>
 
-    <canvas id="hiddenCanvas" class="hidden"></canvas>
+    <!-- 主标题 -->
+    <h1 class="title-zh">觉醒</h1>
+    <p class="title-en">A W A K E N I N G</p>
 
-    <script>
-        // 状态变量
-        let uploadedImage = null;
-        let rowCount = 3;
-        let colCount = 3;
-        let croppedImages = [];
-        let emojiImages = [];
-        
-        // 网格线位置（百分比）
-        let hLinePositions = [];
-        let vLinePositions = [];
-        
-        // 拖动状态
-        let isDragging = false;
-        let dragTarget = null;
-        let dragIndex = -1;
+    <!-- 分隔线 -->
+    <div class="divider"></div>
 
-        // DOM 元素
-        const fileInput = document.getElementById('fileInput');
-        const imageWrapper = document.getElementById('imageWrapper');
-        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
-        const imageContainer = document.getElementById('imageContainer');
-        const previewImage = document.getElementById('previewImage');
-        const gridOverlay = document.getElementById('gridOverlay');
-        const resultGrid = document.getElementById('resultGrid');
-        const resultPlaceholder = document.getElementById('resultPlaceholder');
-        const rowValue = document.getElementById('rowValue');
-        const colValue = document.getElementById('colValue');
-        const totalPieces = document.getElementById('totalPieces');
-        const hiddenCanvas = document.getElementById('hiddenCanvas');
-        const ctx = hiddenCanvas.getContext('2d');
-        const downloadAllBtn = document.getElementById('downloadAllBtn');
-        const emojiArea = document.getElementById('emojiArea');
-        const emojiPlaceholder = document.getElementById('emojiPlaceholder');
-        const emojiControls = document.getElementById('emojiControls');
-        const reUploadBtn = document.getElementById('reUploadBtn');
-        
-        // 重新上传按钮逻辑
-        reUploadBtn.addEventListener('click', () => {
-            fileInput.click();
-        });
+    <!-- 打字机副标题 -->
+    <p class="subtitle" id="subtitle">
+      <span id="typeText"></span><span class="typewriter-cursor" id="typeCursor"></span>
+    </p>
 
-        // 预览区点击上传
-        imageWrapper.addEventListener('click', (e) => {
-            // 如果点击的是网格线或图片本身，不触发上传（防止拖动时误触）
-            if (e.target.closest('.grid-line-h') || e.target.closest('.grid-line-v')) return;
-            // 如果已经有图片，且点击的是覆盖层，可能是在操作网格，需谨慎
-            // 这里简单处理：只有点击占位符区域或者明确的上传操作才触发
-            // 为了体验，如果没图片，整个区域都触发。如果有图片，只有按钮触发。
-            if (!uploadedImage) {
-                fileInput.click();
-            }
-        });
+    <!-- 进入按钮 -->
+    <a href="#" class="enter-btn" id="enterBtn">
+      踏入光中
+      <span class="btn-arrow">→</span>
+    </a>
+  </main>
 
-        // 拖拽上传
-        imageWrapper.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            if (!uploadedImage) imageWrapper.classList.add('bg-white/10');
-        });
+  <!-- 底部标签 -->
+  <div class="footer-tags">
+    <span>意识</span>
+    <span>觉知</span>
+    <span>重生</span>
+    <span>自由</span>
+  </div>
 
-        imageWrapper.addEventListener('dragleave', () => {
-            if (!uploadedImage) imageWrapper.classList.remove('bg-white/10');
-        });
+  <script>
+    /* ────────────────────────────────
+       1. 自定义光标
+    ──────────────────────────────── */
+    const cursor = document.getElementById('cursor');
+    const trail = document.getElementById('cursor-trail');
+    let mx = 0, my = 0, tx = 0, ty = 0;
 
-        imageWrapper.addEventListener('drop', (e) => {
-            e.preventDefault();
-            if (!uploadedImage) imageWrapper.classList.remove('bg-white/10');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFile(file);
-            }
-        });
+    document.addEventListener('mousemove', e => {
+      mx = e.clientX; my = e.clientY;
+      cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
+    });
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
+    (function animTrail() {
+      tx += (mx - tx) * 0.12;
+      ty += (my - ty) *.12;
+      trail.style.transform = `translate(${tx}px, ${ty}px) translate(-50%, -50%)`;
+      requestAnimationFrame(animTrail);
+    })();
 
-        function handleFile(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                uploadedImage = new Image();
-                uploadedImage.onload = () => {
-                    previewImage.src = e.target.result;
-                    
-                    // 切换显示状态
-                    uploadPlaceholder.classList.add('hidden');
-                    imageContainer.classList.remove('hidden');
-                    resultPlaceholder.classList.remove('hidden');
-                    resultGrid.innerHTML = '';
-                    downloadAllBtn.classList.add('hidden');
-                    
-                    // 重置表情包区域
-                    emojiPlaceholder.classList.remove('hidden');
-                    emojiControls.classList.add('hidden');
-                    document.getElementById('emojiResultArea').classList.add('hidden');
-                    document.getElementById('downloadEmojiAllBtn').classList.add('hidden');
+    document.querySelectorAll('a, button').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%) scale(2)`;
+        cursor.style.opacity = '0.6';
+      });
+      el.addEventListener('mouseleave', () => {
+        cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%) scale(1)`;
+        cursor.style.opacity = '1';
+      });
+    });
 
-                    initGridPositions();
-                    updateGrid();
-                    
-                    // 更新按钮文字
-                    reUploadBtn.innerHTML = '🔄 重新上传';
-                    reUploadBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                    reUploadBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
-                };
-                uploadedImage.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
+    /* ────────────────────────────────
+       2. 星空粒子
+    ──────────────────────────────── */
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const STARS = 280;
+    const stars = Array.from({ length: STARS }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: Math.random() * 1.5 + 0.2,
+      speed: Math.random() * 0.15 + 0.03,
+      alpha: Math.random() * 0.7 + 0.1,
+      twinkleSpeed: Math.random() * 0.015 + 0.005,
+      twinkleDir: Math.random() > 0.5 ? 1 : -1,
+      gold: Math.random() < 0.12
+    }));
+
+    // 流星
+    const METEORS = 3;
+    const meteors = Array.from({ length: METEORS }, () => newMeteor());
+    function newMeteor() {
+      return {
+        x: Math.random() * window.innerWidth * 0.7,
+        y: Math.random() * window.innerHeight * 0.4,
+        len: Math.random() * 160 + 80,
+        speed: Math.random() * 4 + 2,
+        alpha: 0,
+        life: 0,
+        maxLife: Math.random() * 80 + 40,
+        delay: Math.random() * 300
+      };
+    }
+
+    function drawStars() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach(s => {
+        s.alpha += s.twinkleSpeed * s.twinkleDir;
+        if (s.alpha >= 0.85 || s.alpha <= 0.1) s.twinkleDir *= -1;
+
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        if (s.gold) {
+          ctx.fillStyle = `rgba(201,168,76,${s.alpha})`;
+        } else {
+          ctx.fillStyle = `rgba(220,220,255,${s.alpha * 0.8})`;
         }
+        ctx.fill();
+      });
 
-        function initGridPositions() {
-            hLinePositions = [];
-            vLinePositions = [];
-            for (let i = 1; i < rowCount; i++) {
-                hLinePositions.push((i / rowCount) * 100);
-            }
-            for (let i = 1; i < colCount; i++) {
-                vLinePositions.push((i / colCount) * 100);
-            }
+      // 流星
+      meteors.forEach((m, i) => {
+        if (m.delay > 0) { m.delay--; return; }
+        m.life++;
+        m.alpha = m.life < 10 ? m.life / 10 : (m.life > m.maxLife - 10 ? (m.maxLife - m.life) / 10 : 1);
+        m.x += m.speed * 1.5;
+        m.y += m.speed;
+
+        const grad = ctx.createLinearGradient(m.x, m.y, m.x - m.len, m.y - m.len * 0.67);
+        grad.addColorStop(0, `rgba(240,208,128,${m.alpha * 0.9})`);
+        grad.addColorStop(1, 'rgba(240,208,128,0)');
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(m.x - m.len, m.y - m.len * 0.67);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        if (m.life >= m.maxLife || m.x > canvas.width || m.y > canvas.height) {
+          meteors[i] = newMeteor();
+          meteors[i].delay = Math.random() * 200 + 100;
         }
+      });
 
-        // 行列调节
-        document.getElementById('decreaseRowBtn').addEventListener('click', () => {
-            if (rowCount > 1) { rowCount--; updateDisplay(); initGridPositions(); updateGrid(); }
-        });
-        document.getElementById('increaseRowBtn').addEventListener('click', () => {
-            if (rowCount < 10) { rowCount++; updateDisplay(); initGridPositions(); updateGrid(); }
-        });
-        document.getElementById('decreaseColBtn').addEventListener('click', () => {
-            if (colCount > 1) { colCount--; updateDisplay(); initGridPositions(); updateGrid(); }
-        });
-        document.getElementById('increaseColBtn').addEventListener('click', () => {
-            if (colCount < 10) { colCount++; updateDisplay(); initGridPositions(); updateGrid(); }
-        });
+      requestAnimationFrame(drawStars);
+    }
+    drawStars();
 
-        document.getElementById('resetGridBtn').addEventListener('click', () => {
-            initGridPositions();
-            updateGrid();
-        });
+    /* ────────────────────────────────
+       3. 符文环上的旋转点
+    ──────────────────────────────── */
+    const dotsContainer = document.getElementById('runeDots');
+    const dotCount = 12;
+    const ring = document.getElementById('runeRing');
 
-        function updateDisplay() {
-            rowValue.textContent = rowCount;
-            colValue.textContent = colCount;
-            totalPieces.textContent = rowCount * colCount;
+    function placeDots() {
+      dotsContainer.innerHTML = '';
+      const size = ring.offsetWidth;
+      const radius = size / 2 - 4;
+      for (let i = 0; i < dotCount; i++) {
+        const angle = (i / dotCount) * 2 * Math.PI;
+        const dot = document.createElement('div');
+        dot.className = 'rune-dot';
+        const x = 50 + (radius / size * 100 - 0.5) * Math.cos(angle);
+        const y = 50 + (radius / size * 100 - 0.5) * Math.sin(angle);
+        dot.style.cssText = `
+          left: ${x}%;
+          top: ${y}%;
+          transform: translate(-50%, -50%) rotate(${angle}rad);
+          opacity: ${i % 3 === 0 ? 1 : i % 3 === 1 ? 0.5 : 0.2};
+          width: ${i % 4 === 0 ? '6px' : '3px'};
+          height: ${i % 4 === 0 ? '6px' : '3px'};
+        `;
+        dotsContainer.appendChild(dot);
+      }
+    }
+    placeDots();
+
+    // 让点旋转
+    let dotAngle = 0;
+    (function rotateDots() {
+      dotAngle += 0.005;
+      const size = ring.offsetWidth;
+      const radius = size / 2 - 4;
+      const dots = dotsContainer.querySelectorAll('.rune-dot');
+      dots.forEach((dot, i) => {
+        const angle = (i / dotCount) * 2 * Math.PI + dotAngle;
+        const x = 50 + (radius / size * 100 - 0.5) * Math.cos(angle);
+        const y = 50 + (radius / size * 100 - 0.5) * Math.sin(angle);
+        dot.style.left = x + '%';
+        dot.style.top = y + '%';
+      });
+      requestAnimationFrame(rotateDots);
+    })();
+
+    /* ────────────────────────────────
+       4. 打字机效果
+    ──────────────────────────────── */
+    const lines = [
+      '觉醒是一场从内部燃起的革命',
+      '不是破坏，而是重生',
+      '当你看见自己，世界便随之不同',
+      '欢迎，来到光的边界'
+    ];
+    const typeEl = document.getElementById('typeText');
+    let lineIndex = 0, charIndex = 0, isDeleting = false;
+    let typeStarted = false;
+
+    function typeWriter() {
+      const current = lines[lineIndex];
+      if (!isDeleting) {
+        typeEl.textContent = current.slice(0, ++charIndex);
+        if (charIndex === current.length) {
+          isDeleting = true;
+          setTimeout(typeWriter, 2200);
+          return;
         }
-
-        function updateGrid() {
-            gridOverlay.innerHTML = '';
-            hLinePositions.forEach((pos, index) => {
-                const line = document.createElement('div');
-                line.className = 'grid-line-h';
-                line.style.top = `${pos}%`;
-                line.dataset.index = index;
-                line.dataset.type = 'h';
-                line.addEventListener('mousedown', startDrag);
-                line.addEventListener('touchstart', startDrag, { passive: false });
-                gridOverlay.appendChild(line);
-            });
-            vLinePositions.forEach((pos, index) => {
-                const line = document.createElement('div');
-                line.className = 'grid-line-v';
-                line.style.left = `${pos}%`;
-                line.dataset.index = index;
-                line.dataset.type = 'v';
-                line.addEventListener('mousedown', startDrag);
-                line.addEventListener('touchstart', startDrag, { passive: false });
-                gridOverlay.appendChild(line);
-            });
+      } else {
+        typeEl.textContent = current.slice(0, --charIndex);
+        if (charIndex === 0) {
+          isDeleting = false;
+          lineIndex = (lineIndex + 1) % lines.length;
         }
+      }
+      setTimeout(typeWriter, isDeleting ? 45 : 100);
+    }
 
-        function startDrag(e) {
-            e.preventDefault();
-            isDragging = true;
-            dragTarget = e.target;
-            dragIndex = parseInt(dragTarget.dataset.index);
-            dragTarget.classList.add('dragging');
-            document.body.style.cursor = dragTarget.dataset.type === 'h' ? 'row-resize' : 'col-resize';
-        }
+    // 动画完成后开始打字
+    setTimeout(() => typeWriter(), 2600);
 
-        function onDrag(e) {
-            if (!isDragging || !dragTarget) return;
-            const rect = imageContainer.getBoundingClientRect();
-            let clientX, clientY;
-            if (e.touches) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
-            }
-            
-            if (dragTarget.dataset.type === 'h') {
-                let newPos = ((clientY - rect.top) / rect.height) * 100;
-                const minPos = dragIndex === 0 ? 5 : hLinePositions[dragIndex - 1] + 5;
-                const maxPos = dragIndex === hLinePositions.length - 1 ? 95 : hLinePositions[dragIndex + 1] - 5;
-                newPos = Math.max(minPos, Math.min(maxPos, newPos));
-                hLinePositions[dragIndex] = newPos;
-                dragTarget.style.top = `${newPos}%`;
-            } else {
-                let newPos = ((clientX - rect.left) / rect.width) * 100;
-                const minPos = dragIndex === 0 ? 5 : vLinePositions[dragIndex - 1] + 5;
-                const maxPos = dragIndex === vLinePositions.length - 1 ? 95 : vLinePositions[dragIndex + 1] - 5;
-                newPos = Math.max(minPos, Math.min(maxPos, newPos));
-                vLinePositions[dragIndex] = newPos;
-                dragTarget.style.left = `${newPos}%`;
-            }
-        }
+    /* ────────────────────────────────
+       5. 按钮光波点击特效
+    ──────────────────────────────── */
+    document.getElementById('enterBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      const ripple = document.createElement('span');
+      const rect = this.getBoundingClientRect();
+      ripple.style.cssText = `
+        position:absolute;
+        width:300px;height:300px;
+        left:${e.clientX - rect.left - 150}px;
+        top:${e.clientY - rect.top - 150}px;
+        background:rgba(201,168,76,0.2);
+        border-radius:50%;
+        transform:scale(0);
+        animation:rippleAnim 0.8s ease-out forwards;
+        pointer-events:none;
+      `;
+      const style = document.createElement('style');
+      style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
+      document.head.appendChild(style);
+      this.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 800);
+    });
 
-        function endDrag() {
-            if (isDragging && dragTarget) {
-                dragTarget.classList.remove('dragging');
-            }
-            isDragging = false;
-            dragTarget = null;
-            dragIndex = -1;
-            document.body.style.cursor = '';
-        }
-
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', endDrag);
-        document.addEventListener('touchmove', onDrag, { passive: false });
-        document.addEventListener('touchend', endDrag);
-
-        // 裁剪
-        document.getElementById('cropBtn').addEventListener('click', cropImage);
-
-        function cropImage() {
-            if (!uploadedImage) return;
-            croppedImages = [];
-            const hPoints = [0, ...hLinePositions, 100];
-            const vPoints = [0, ...vLinePositions, 100];
-
-            resultGrid.innerHTML = '';
-            resultGrid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
-            resultPlaceholder.classList.add('hidden');
-
-            for (let row = 0; row < rowCount; row++) {
-                for (let col = 0; col < colCount; col++) {
-                    const x = (vPoints[col] / 100) * uploadedImage.width;
-                    const y = (hPoints[row] / 100) * uploadedImage.height;
-                    const width = ((vPoints[col + 1] - vPoints[col]) / 100) * uploadedImage.width;
-                    const height = ((hPoints[row + 1] - hPoints[row]) / 100) * uploadedImage.height;
-
-                    hiddenCanvas.width = width;
-                    hiddenCanvas.height = height;
-                    ctx.drawImage(uploadedImage, x, y, width, height, 0, 0, width, height);
-
-                    const dataUrl = hiddenCanvas.toDataURL('image/png');
-                    croppedImages.push({ dataUrl, name: `piece_${row + 1}_${col + 1}.png` });
-
-                    const item = document.createElement('div');
-                    item.className = 'result-item bg-white/5 rounded-lg p-1 text-center cursor-pointer';
-                    item.innerHTML = `
-                        <img src="${dataUrl}" class="w-full rounded" title="点击下载">
-                        <p class="text-xs text-gray-400 mt-1">${row + 1}-${col + 1}</p>
-                    `;
-                    item.onclick = () => downloadSingle(croppedImages.length - 1);
-                    resultGrid.appendChild(item);
-                }
-            }
-
-            downloadAllBtn.classList.remove('hidden');
-            
-            // 激活表情包区域
-            emojiPlaceholder.classList.add('hidden');
-            emojiControls.classList.remove('hidden');
-            document.getElementById('emojiResultArea').classList.add('hidden');
-            document.getElementById('downloadEmojiAllBtn').classList.add('hidden');
-        }
-
-        function downloadSingle(index) {
-            const link = document.createElement('a');
-            link.download = croppedImages[index].name;
-            link.href = croppedImages[index].dataUrl;
-            link.click();
-        }
-
-        downloadAllBtn.addEventListener('click', () => {
-            croppedImages.forEach((img, index) => {
-                setTimeout(() => {
-                    const link = document.createElement('a');
-                    link.download = img.name;
-                    link.href = img.dataUrl;
-                    link.click();
-                }, index * 200);
-            });
-        });
-
-        // 表情包转换
-        const emojiFormat = document.getElementById('emojiFormat');
-        const emojiSize = document.getElementById('emojiSize');
-        const customSizeArea = document.getElementById('customSizeArea');
-        const customSize = document.getElementById('customSize');
-        const emojiGrid = document.getElementById('emojiGrid');
-        const emojiResultArea = document.getElementById('emojiResultArea');
-        const downloadEmojiAllBtn = document.getElementById('downloadEmojiAllBtn');
-        const progressArea = document.getElementById('progressArea');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-
-        emojiSize.addEventListener('change', () => {
-            customSizeArea.classList.toggle('hidden', emojiSize.value !== 'custom');
-        });
-
-        document.getElementById('convertEmojiBtn').addEventListener('click', convertToEmoji);
-
-        async function convertToEmoji() {
-            if (croppedImages.length === 0) return;
-
-            emojiImages = [];
-            emojiGrid.innerHTML = '';
-            
-            const format = emojiFormat.value;
-            let size = parseInt(emojiSize.value);
-            if (emojiSize.value === 'custom') {
-                size = parseInt(customSize.value) || 128;
-            }
-
-            let mimeType = 'image/png';
-            let extension = 'png';
-            switch (format) {
-                case 'gif': mimeType = 'image/gif'; extension = 'gif'; break;
-                case 'webp': mimeType = 'image/webp'; extension = 'webp'; break;
-                case 'jpeg': mimeType = 'image/jpeg'; extension = 'jpg'; break;
-            }
-
-            progressArea.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressText.textContent = `0/${croppedImages.length}`;
-            downloadEmojiAllBtn.classList.add('hidden');
-            emojiResultArea.classList.remove('hidden');
-
-            for (let index = 0; index < croppedImages.length; index++) {
-                const img = croppedImages[index];
-                
-                await new Promise((resolve) => {
-                    const tempImg = new Image();
-                    tempImg.onload = () => {
-                        hiddenCanvas.width = size;
-                        hiddenCanvas.height = size;
-                        ctx.clearRect(0, 0, size, size);
-                        
-                        if (format === 'jpeg') {
-                            ctx.fillStyle = '#ffffff';
-                            ctx.fillRect(0, 0, size, size);
-                        }
-
-                        const scale = Math.min(size / tempImg.width, size / tempImg.height);
-                        const newWidth = tempImg.width * scale;
-                        const newHeight = tempImg.height * scale;
-                        const offsetX = (size - newWidth) / 2;
-                        const offsetY = (size - newHeight) / 2;
-
-                        ctx.drawImage(tempImg, offsetX, offsetY, newWidth, newHeight);
-
-                        const dataUrl = hiddenCanvas.toDataURL(mimeType);
-                        emojiImages.push({ dataUrl, name: `emoji_${index + 1}.${extension}` });
-
-                        const item = document.createElement('div');
-                        item.className = 'bg-white/10 rounded p-1 text-center cursor-pointer hover:bg-white/20 transition-all';
-                        item.style.background = 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 12px 12px';
-                        item.innerHTML = `<img src="${dataUrl}" class="w-full rounded">`;
-                        const currentIndex = emojiImages.length - 1;
-                        item.onclick = () => downloadEmojiSingle(currentIndex);
-                        emojiGrid.appendChild(item);
-
-                        resolve();
-                    };
-                    tempImg.src = img.dataUrl;
-                });
-
-                const progress = ((index + 1) / croppedImages.length) * 100;
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = `${index + 1}/${croppedImages.length}`;
-            }
-
-            downloadEmojiAllBtn.classList.remove('hidden');
-            setTimeout(() => progressArea.classList.add('hidden'), 1000);
-        }
-
-        function downloadEmojiSingle(index) {
-            const link = document.createElement('a');
-            link.download = emojiImages[index].name;
-            link.href = emojiImages[index].dataUrl;
-            link.click();
-        }
-
-        downloadEmojiAllBtn.addEventListener('click', () => {
-            emojiImages.forEach((img, index) => {
-                setTimeout(() => {
-                    const link = document.createElement('a');
-                    link.download = img.name;
-                    link.href = img.dataUrl;
-                    link.click();
-                }, index * 200);
-            });
-        });
-    </script>
+    /* ────────────────────────────────
+       6. 鼠标视差
+    ──────────────────────────────── */
+    document.addEventListener('mousemove', e => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const dx = (e.clientX - cx) / cx;
+      const dy = (e.clientY - cy) / cy;
+      document.querySelector('.rune-ring-wrapper').style.transform =
+        `translate(${dx * 8}px, ${dy * 8}px) scale(1)`;
+      document.querySelector('.title-zh').style.textShadow =
+        `${dx * 10}px ${dy * 10}px 40px rgba(201,168,76,0.3)`;
+    });
+  </script>
 </body>
 </html>
