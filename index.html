@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>觉醒 · Awakening</title>
-  <meta name="description" content="觉醒是一场从内部燃起的革命——不是破坏，而是重生。欢迎踏入这片光的领地。" />
+  <title>觉醒诗社 · Awakening</title>
+  <meta name="description" content="觉醒是一场从内部燃起的革命。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700;900&family=Cinzel:wght@400;700&family=Inter:wght@200;300;400&display=swap" rel="stylesheet" />
@@ -105,6 +105,32 @@
       100% { transform: translate(3vw, 5vh) scale(1.08); }
     }
 
+    /* ── 鲸鱼背景 ── */
+    .whale-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.35;
+      mix-blend-mode: lighten;
+      overflow: hidden;
+    }
+    .whale-img {
+      position: absolute;
+      width: 110vw;
+      height: 110vh;
+      top: -5vh;
+      left: -5vw;
+      background: url('逍遥游.png') no-repeat center center;
+      background-size: cover; /* 铺满全屏 */
+      animation: whaleSwim 45s ease-in-out infinite alternate;
+    }
+    @keyframes whaleSwim {
+      0% { transform: translate(0, 0) rotate(-0.5deg) scale(1); }
+      50% { transform: translate(2vw, 1vh) rotate(0.5deg) scale(1.02); }
+      100% { transform: translate(-1vw, -1vh) rotate(-0.2deg) scale(1.01); }
+    }
+
     /* ── 主内容容器 ── */
     #main {
       position: relative;
@@ -114,29 +140,22 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start; /* 改为 flex-start 使整体上移 */
       text-align: center;
-      padding: 2rem;
+      padding-top: 3vh; /* 减小顶部 padding，让眼睛和标题进一步往上 */
     }
 
     /* ── 顶部标记 ── */
     .label-top {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(0.6rem, 1.5vw, 0.85rem);
-      letter-spacing: 0.5em;
-      color: var(--gold);
-      text-transform: uppercase;
-      opacity: 0;
-      animation: fadeSlideDown 1.2s ease 0.5s forwards;
-      margin-bottom: 2rem;
+      display: none; /* 彻底移除 */
     }
 
     /* ── 神圣符文圆环 ── */
     .rune-ring-wrapper {
       position: relative;
-      width: clamp(140px, 22vw, 240px);
-      height: clamp(140px, 22vw, 240px);
-      margin-bottom: 2.5rem;
+      width: clamp(100px, 15vw, 180px);
+      height: clamp(100px, 15vw, 180px);
+      margin-bottom: 1rem;
       opacity: 0;
       animation: fadeScale 1.5s ease 0.8s forwards;
     }
@@ -191,7 +210,7 @@
       background: var(--gold);
       border-radius: 50%;
       box-shadow: 0 0 8px var(--gold);
-      transform-origin: 50% calc(50% + clamp(65px, 10vw, 110px));
+      transform-origin: 50% calc(50% + clamp(45px, 7vw, 85px));
     }
     @keyframes spinSlow {
       from { transform: rotate(0deg); }
@@ -202,7 +221,7 @@
     .title-zh {
       font-family: 'Noto Serif SC', serif;
       font-weight: 900;
-      font-size: clamp(4rem, 12vw, 10rem);
+      font-size: clamp(3.5rem, 10vw, 8rem);
       line-height: 1;
       letter-spacing: -0.02em;
       background: linear-gradient(135deg, #f0d080 0%, #c9a84c 40%, #ffffff 60%, #c9a84c 80%, #8a6a1a 100%);
@@ -211,12 +230,12 @@
       -webkit-text-fill-color: transparent;
       background-size: 200% 200%;
       animation: shimmerTitle 4s ease-in-out infinite alternate, fadeSlideUp 1.2s ease 1.2s both;
-      margin-bottom: 0.4rem;
+      margin-bottom: 0.2rem;
       text-shadow: none;
       position: relative;
     }
     .title-zh::after {
-      content: '觉醒';
+      content: '觉醒诗社';
       position: absolute;
       inset: 0;
       background: linear-gradient(135deg, #f0d080 0%, #c9a84c 40%, #ffffff 60%, #c9a84c 80%, #8a6a1a 100%);
@@ -235,21 +254,21 @@
     .title-en {
       font-family: 'Cinzel', serif;
       font-weight: 400;
-      font-size: clamp(0.9rem, 2.5vw, 1.6rem);
-      letter-spacing: 0.6em;
+      font-size: clamp(0.8rem, 2vw, 1.2rem);
+      letter-spacing: 0.5em;
       color: var(--gold);
       opacity: 0;
       text-transform: uppercase;
       animation: fadeSlideUp 1.2s ease 1.6s forwards;
-      margin-bottom: 2.8rem;
+      margin-bottom: 1.5rem;
     }
 
     /* ── 横线分隔 ── */
     .divider {
-      width: clamp(60px, 12vw, 140px);
+      width: clamp(50px, 10vw, 100px);
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--gold), transparent);
-      margin: 0 auto 2.2rem;
+      margin: 0 auto 1.5rem;
       opacity: 0;
       animation: fadeIn 1s ease 2s forwards;
     }
@@ -258,14 +277,14 @@
     .subtitle {
       font-family: 'Noto Serif SC', serif;
       font-weight: 300;
-      font-size: clamp(0.85rem, 2vw, 1.15rem);
-      line-height: 2;
+      font-size: clamp(0.8rem, 1.8vw, 1rem);
+      line-height: 1.8;
       color: rgba(255,255,255,0.65);
-      letter-spacing: 0.18em;
+      letter-spacing: 0.15em;
       max-width: 520px;
       opacity: 0;
       animation: fadeIn 1s ease 2.3s forwards;
-      min-height: 3.5em;
+      min-height: 2.5em;
     }
     .typewriter-cursor {
       display: inline-block;
@@ -285,28 +304,33 @@
     .enter-btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 0.8rem;
-      margin-top: 3rem;
-      padding: 0.85rem 2.8rem;
-      border: 1px solid rgba(201,168,76,0.5);
-      background: transparent;
+      margin-top: 0;
+      width: clamp(200px, 20vw, 260px);
+      height: clamp(48px, 6vh, 56px);
+      padding: 0;
+      border: 1px solid var(--gold);
+      background: rgba(201, 168, 76, 0.05);
       color: var(--gold-light);
       font-family: 'Noto Serif SC', serif;
       font-size: 0.95rem;
-      letter-spacing: 0.3em;
+      font-weight: 700;
+      letter-spacing: 0.2em;
       cursor: none;
       position: relative;
       overflow: hidden;
       opacity: 0;
       animation: fadeSlideUp 1s ease 3s forwards;
-      transition: color 0.4s, border-color 0.4s, transform 0.3s;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       text-decoration: none;
+      box-shadow: 0 0 15px rgba(201, 168, 76, 0.12);
     }
     .enter-btn::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
       transform: translateX(-100%);
       transition: transform 0.6s ease;
     }
@@ -314,17 +338,34 @@
       transform: translateX(100%);
     }
     .enter-btn:hover {
-      border-color: var(--gold);
+      border-color: var(--gold-light);
       color: #fff;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 40px rgba(201,168,76,0.2), 0 0 20px rgba(201,168,76,0.1);
+      transform: translateY(-5px) scale(1.05);
+      box-shadow: 0 15px 50px rgba(201, 168, 76, 0.4), 0 0 30px rgba(201, 168, 76, 0.2);
+      background: rgba(201, 168, 76, 0.15);
     }
     .btn-arrow {
-      font-size: 1.1rem;
+      font-size: 1.2rem;
       transition: transform 0.3s;
     }
     .enter-btn:hover .btn-arrow {
-      transform: translateX(5px);
+      transform: translateX(8px);
+    }
+
+    /* ── 测评入口容器 ── */
+    .evaluation-entries {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 2.5rem;
+      opacity: 0;
+      animation: fadeSlideUp 1s ease 3.2s forwards;
+      perspective: 1000px;
+    }
+    .evaluation-entries.more-entries {
+      margin-top: 1rem;
+      margin-bottom: 2rem;
+      animation-delay: 3.4s;
     }
 
     /* ── 底部标签 ── */
@@ -399,7 +440,15 @@
     /* ── 响应式 ── */
     @media (max-width: 600px) {
       .side-light, .corner, .footer-tags { display: none; }
-      .title-zh { font-size: clamp(4rem, 20vw, 6rem); }
+      .title-zh { font-size: clamp(3rem, 15vw, 5rem); }
+      .evaluation-entries {
+        flex-direction: column;
+        gap: 15px !important;
+        align-items: center;
+      }
+      .enter-btn {
+        width: 240px;
+      }
     }
   </style>
 </head>
@@ -416,6 +465,11 @@
   <div class="bg-orb bg-orb-1"></div>
   <div class="bg-orb bg-orb-2"></div>
   <div class="bg-orb bg-orb-3"></div>
+
+  <!-- 鲸鱼背景 -->
+  <div class="whale-bg">
+    <div class="whale-img"></div>
+  </div>
 
   <!-- 侧边光线 -->
   <div class="side-light side-light-left"></div>
@@ -453,8 +507,6 @@
 
   <!-- 主内容 -->
   <main id="main">
-    <p class="label-top">The Light Within · 内在之光</p>
-
     <!-- 神圣符文环 -->
     <div class="rune-ring-wrapper" id="runeRing">
       <div class="rune-ring"></div>
@@ -489,8 +541,8 @@
     </div>
 
     <!-- 主标题 -->
-    <h1 class="title-zh">觉醒</h1>
-    <p class="title-en">A W A K E N I N G</p>
+    <h1 class="title-zh">觉 醒 诗 社</h1>
+    <p class="title-en">A W A K E N I N G · P O E T R Y</p>
 
     <!-- 分隔线 -->
     <div class="divider"></div>
@@ -500,20 +552,30 @@
       <span id="typeText"></span><span class="typewriter-cursor" id="typeCursor"></span>
     </p>
 
-    <!-- 进入按钮 -->
-    <a href="#" class="enter-btn" id="enterBtn">
-      踏入光中
-      <span class="btn-arrow">→</span>
-    </a>
-  </main>
+    <!-- 测评入口 -->
+    <div class="evaluation-entries">
+      <a href="子页面/MBTI/index.html" class="enter-btn">
+        灵性人格测试
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href="子页面/客体化测试/index.html" class="enter-btn">
+        自我客体化测评
+        <span class="btn-arrow">→</span>
+      </a>
+    </div>
 
-  <!-- 底部标签 -->
-  <div class="footer-tags">
-    <span>意识</span>
-    <span>觉知</span>
-    <span>重生</span>
-    <span>自由</span>
-  </div>
+    <!-- 更多入口 -->
+    <div class="evaluation-entries more-entries">
+      <a href="https://ncnra455tpou.feishu.cn/wiki/R4y5wdFngiviwWkz1uQcYSDInmh" target="_blank" class="enter-btn">
+        觉醒智库
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href="子页面/snow/index.html" class="enter-btn">
+        在线赏雪
+        <span class="btn-arrow">→</span>
+      </a>
+    </div>
+  </main>
 
   <script>
     /* ────────────────────────────────
@@ -683,10 +745,10 @@
        4. 打字机效果
     ──────────────────────────────── */
     const lines = [
-      '觉醒是一场从内部燃起的革命',
-      '不是破坏，而是重生',
-      '当你看见自己，世界便随之不同',
-      '欢迎，来到光的边界'
+      '认识生命真相，活出觉醒人生',
+      '在你醒来之前，你从未真正活过',
+      '当死亡降临时，我们才如梦方醒',
+      '真实的永远不会消失，虚假的从来都不存在'
     ];
     const typeEl = document.getElementById('typeText');
     let lineIndex = 0, charIndex = 0, isDeleting = false;
@@ -717,26 +779,27 @@
     /* ────────────────────────────────
        5. 按钮光波点击特效
     ──────────────────────────────── */
-    document.getElementById('enterBtn').addEventListener('click', function(e) {
-      e.preventDefault();
-      const ripple = document.createElement('span');
-      const rect = this.getBoundingClientRect();
-      ripple.style.cssText = `
-        position:absolute;
-        width:300px;height:300px;
-        left:${e.clientX - rect.left - 150}px;
-        top:${e.clientY - rect.top - 150}px;
-        background:rgba(201,168,76,0.2);
-        border-radius:50%;
-        transform:scale(0);
-        animation:rippleAnim 0.8s ease-out forwards;
-        pointer-events:none;
-      `;
-      const style = document.createElement('style');
-      style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
-      document.head.appendChild(style);
-      this.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 800);
+    document.querySelectorAll('.enter-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        const ripple = document.createElement('span');
+        const rect = this.getBoundingClientRect();
+        ripple.style.cssText = `
+          position:absolute;
+          width:300px;height:300px;
+          left:${e.clientX - rect.left - 150}px;
+          top:${e.clientY - rect.top - 150}px;
+          background:rgba(201,168,76,0.2);
+          border-radius:50%;
+          transform:scale(0);
+          animation:rippleAnim 0.8s ease-out forwards;
+          pointer-events:none;
+        `;
+        const style = document.createElement('style');
+        style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
+        document.head.appendChild(style);
+        this.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 800);
+      });
     });
 
     /* ────────────────────────────────
@@ -751,6 +814,10 @@
         `translate(${dx * 8}px, ${dy * 8}px) scale(1)`;
       document.querySelector('.title-zh').style.textShadow =
         `${dx * 10}px ${dy * 10}px 40px rgba(201,168,76,0.3)`;
+      
+      // 鲸鱼视差效果
+      document.querySelector('.whale-img').style.transform = 
+        `translate(${dx * -15}px, ${dy * -10}px) scale(1.02)`;
     });
   </script>
 </body>
