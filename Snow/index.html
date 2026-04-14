@@ -129,10 +129,51 @@
         li {
             margin-bottom: 3px;
         }
+
+        /* 返回主页按钮样式 */
+        .nav-home-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 25px;
+            color: #333;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-home-btn:hover {
+            background: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        @media (max-width: 600px) {
+            .nav-home-btn span { display: none; }
+            .nav-home-btn { padding: 10px; border-radius: 50%; }
+        }
     </style>
 </head>
 
 <body>
+    <!-- 返回主页按钮 -->
+    <a href="../index.html" class="nav-home-btn" title="返回主页">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+        <span>返回主页</span>
+    </a>
+
     <canvas id="snowCanvas"></canvas>
 
     <div id="ui-container">
