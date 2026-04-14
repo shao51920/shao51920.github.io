@@ -470,6 +470,11 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* 仅在首页和结果页显示返回按钮 */
+body:not(.landing-active):not(.result-active) .nav-home-btn {
+  display: none !important;
+}
+
 .nav-home-btn:hover {
   background: var(--accent-main);
   color: white;

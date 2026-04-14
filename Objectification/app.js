@@ -9,17 +9,12 @@ function showPage(pageId) {
     targetPage.classList.add('active');
   }
   
+  // 更新 body class 用于 CSS 控制按钮显隐
+  document.body.classList.remove('landing-active', 'result-active');
+  if (pageId === 'landing') document.body.classList.add('landing-active');
+  if (pageId === 'result') document.body.classList.add('result-active');
+  
   window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  // 首页和结果页显示返回主页按钮，题目页隐藏
-  const homeBtn = document.getElementById('globalHomeBtn');
-  if (homeBtn) {
-    if (pageId === 'landing' || pageId === 'result') {
-      homeBtn.style.display = 'flex';
-    } else {
-      homeBtn.style.display = 'none';
-    }
-  }
 }
 
 function startTest() {
