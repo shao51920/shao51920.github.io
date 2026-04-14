@@ -1028,10 +1028,10 @@ body {
   justify-content: center;
   gap: var(--space-md);
   margin: 0 auto var(--space-md);
-  background: var(--gradient-main);
-  padding: 12px 30px;
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 40px rgba(167, 139, 250, 0.3);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .result-subtitle {
