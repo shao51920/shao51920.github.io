@@ -122,8 +122,10 @@
       top: -5vh;
       left: -5vw;
       background: url('逍遥游.png') no-repeat center center;
-      background-size: cover; /* 铺满全屏 */
+      background-size: cover;
       animation: whaleSwim 45s ease-in-out infinite alternate;
+      image-rendering: -webkit-optimize-contrast; /* 提高渲染性能 */
+      will-change: transform; /* 告诉浏览器这个元素会变动，提前优化 */
     }
     @keyframes whaleSwim {
       0% { transform: translate(0, 0) rotate(-0.5deg) scale(1); }
@@ -554,7 +556,7 @@
 
     <!-- 测评入口 -->
     <div class="evaluation-entries">
-      <a href="子页面/MBTI/index.html" class="enter-btn">
+      <a href="SoulLab/index.html" class="enter-btn">
         灵性人格测试
         <span class="btn-arrow">→</span>
       </a>
