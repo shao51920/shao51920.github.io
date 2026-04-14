@@ -7,8 +7,8 @@
     3. SUPABASE_ANON_KEY = 你的 anon / public key
 */
 
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://xcwdgwvtgbqcsslbgtpy.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_g5USxyN0qcqv9peaZE_irQ_B3QIPV_H';
 
 // 初始化 Supabase 客户端 (使用 CDN 引入的全局变量)
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

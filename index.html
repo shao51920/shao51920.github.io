@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700;900&family=Cinzel:wght@400;700&family=Inter:wght@200;300;400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="shared/auth.css">
   <style>
     *, *::before, *::after {
       margin: 0;
@@ -103,6 +104,33 @@
     @keyframes orbFloat {
       0% { transform: translate(0, 0) scale(1); }
       100% { transform: translate(3vw, 5vh) scale(1.08); }
+    }
+
+    /* 首页专属登录欢迎样式 */
+    .home-auth-welcome {
+      margin: 30px auto;
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 2px;
+      font-weight: 300;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .home-auth-welcome.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .home-auth-login-trigger {
+      color: var(--gold-light);
+      text-decoration: underline;
+      text-underline-offset: 6px;
+      cursor: pointer;
+      font-weight: 400;
+      transition: color 0.3s;
+    }
+    .home-auth-login-trigger:hover {
+      color: white;
     }
 
     /* ── 鲸鱼背景 ── */
@@ -507,6 +535,9 @@
     </svg>
   </div>
 
+  <!-- 登录状态 -->
+  <div id="auth-status"></div>
+
   <!-- 主内容 -->
   <main id="main">
     <!-- 神圣符文环 -->
@@ -553,6 +584,11 @@
     <p class="subtitle" id="subtitle">
       <span id="typeText"></span><span class="typewriter-cursor" id="typeCursor"></span>
     </p>
+
+    <!-- 登录欢迎入口 -->
+    <div id="home-greeting" class="home-auth-welcome show">
+      你好，欢迎登录。 <span class="home-auth-login-trigger" onclick="openAuthModal()">立即探索更多 →</span>
+    </div>
 
     <!-- 测评入口 -->
     <div class="evaluation-entries">
@@ -825,5 +861,23 @@
   <footer style="position: fixed; bottom: 1rem; width: 100%; text-align: center; font-size: 0.7rem; color: rgba(255,255,255,0.2); z-index: 5; font-family: 'Noto Serif SC', serif; letter-spacing: 0.3em; pointer-events: none;">
     青野
   </footer>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="shared/supabase-config.js"></script>
+  <script src="shared/auth.js"></script>
+  <script>
+    // 覆盖 shared/auth.js 中的 renderAuthUI 以适应首页特殊展示
+    const _baseRenderAuthUI = renderAuthUI;
+    renderAuthUI = function() {
+      _baseRenderAuthUI();
+      const greetingEl = document.getElementById('home-greeting');
+      if (!greetingEl) return;
+      
+      if (currentUser && currentProfile) {
+        greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${currentProfile.nickname || '觉者'}</span>。 愿你照亮真实的内在。`;
+      } else {
+        greetingEl.innerHTML = `你好，欢迎登录。 <span class="home-auth-login-trigger" onclick="openAuthModal()">立即登录/注册 →</span>`;
+      }
+    };
+  </script>
 </body>
 </html>

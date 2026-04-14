@@ -102,6 +102,23 @@ function openAuthModal() {
         <button class="auth-tab" onclick="switchAuthTab('register', this)">注册</button>
       </div>
 
+      <div class="auth-social-login">
+        <div class="auth-social-btn wechat" onclick="alert('微信登录接入中，目前请使用邮箱登录')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8.5 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm7 0a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+          </svg>
+          微信一键登录
+        </div>
+        <div class="auth-social-btn phone" onclick="alert('手机登录接入中，目前请使用邮箱登录')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+          手机号登录
+        </div>
+        <div class="auth-divider"><span>或使用邮箱</span></div>
+      </div>
+
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
           <label>邮箱</label>

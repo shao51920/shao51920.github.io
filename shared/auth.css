@@ -277,3 +277,67 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ── Social Login ── */
+.auth-social-login {
+  margin-bottom: 24px;
+}
+
+.auth-social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-social-btn.wechat {
+  background: #07c160;
+  color: white;
+  border: none;
+}
+
+.auth-social-btn.wechat:hover {
+  background: #06ad56;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(7, 193, 96, 0.4);
+}
+
+.auth-social-btn.phone {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.auth-social-btn.phone:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.75rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.auth-divider span {
+  padding: 0 10px;
+}
+

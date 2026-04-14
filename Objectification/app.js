@@ -167,6 +167,11 @@ function showResult() {
   document.getElementById('result-advice').innerHTML = tier.advice;
   
   showPage('result');
+
+  // 初始化评论区
+  setTimeout(() => {
+    if (typeof initComments === 'function') initComments();
+  }, 500);
 }
 
 function restartTest() {
