@@ -20,11 +20,15 @@
     href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;800&swap"
     rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="../shared/auth.css">
+  <link rel="stylesheet" href="../shared/comments.css">
 </head>
 
 <body class="landing-active">
-  <!-- 粒子背景 -->
   <canvas id="particles-canvas"></canvas>
+
+  <!-- 登录状态 -->
+  <div id="auth-status"></div>
 
   <!-- 返回主页按钮 -->
   <a href="../index.html" class="nav-home-btn" id="globalHomeBtn" title="返回主页">
@@ -226,6 +230,10 @@
             style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 6px; white-space: nowrap;">扫码测试灵格</span>
         </div>
       </div>
+      </div>
+
+      <!-- 评论区 -->
+      <div id="comments-section" data-page="soullab" style="margin-top: 40px;"></div>
     </div>
   </section>
 
@@ -238,6 +246,10 @@
   <!-- Toast通知 -->
   <div id="toast" class="toast"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/auth.js"></script>
+  <script src="../shared/comments.js"></script>
   <script src="questions.js?v=2"></script>
   <script src="results.js?v=2"></script>
   <script src="app.js?v=2"></script>
@@ -250,6 +262,8 @@
         window.addEventListener('load', () => { if(typeof startTest === 'function') startTest(); });
       }
     }
+    // 结果页显示后初始化评论
+    const _origShowResult = typeof showResult === 'function' ? showResult : null;
   </script>
 </body>
 

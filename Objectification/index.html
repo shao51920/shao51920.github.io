@@ -12,11 +12,16 @@
     href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="../shared/auth.css">
+  <link rel="stylesheet" href="../shared/comments.css">
 </head>
 
 <body class="landing-active">
   <!-- 背景动画 -->
   <div class="bg-gradient"></div>
+
+  <!-- 登录状态 -->
+  <div id="auth-status"></div>
 
   <!-- 返回主页按钮 -->
   <a href="../index.html" class="nav-home-btn" id="globalHomeBtn" title="返回主页">
@@ -148,8 +153,14 @@
         </div>
       </div>
     </div>
+    <!-- 评论区 -->
+    <div id="comments-section" class="card-bg"></div>
   </section>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/auth.js"></script>
+  <script src="../shared/comments.js"></script>
   <script src="questions.js"></script>
   <script src="results.js"></script>
   <script src="app.js"></script>

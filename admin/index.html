@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>觉醒诗社 · 管理后台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a1a;
+      --card: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --accent: #a78bfa;
+      --danger: #f87171;
+      --text: rgba(255,255,255,0.85);
+      --text-dim: rgba(255,255,255,0.45);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .admin-header {
+      padding: 20px 30px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .admin-header h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .admin-header .admin-actions {
+      display: flex; gap: 10px; align-items: center;
+    }
+    .admin-header button, .admin-header a {
+      padding: 6px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .admin-header button:hover, .admin-header a:hover {
+      border-color: var(--accent);
+    }
+    .admin-login {
+      max-width: 360px;
+      margin: 100px auto;
+      padding: 40px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      text-align: center;
+    }
+    .admin-login h2 { margin-bottom: 24px; font-size: 1.2rem; }
+    .admin-login input {
+      width: 100%;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: white;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .admin-login input:focus { border-color: var(--accent); }
+    .admin-login button {
+      width: 100%;
+      padding: 11px;
+      background: linear-gradient(135deg, #a78bfa, #6366f1);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .admin-login .error { color: var(--danger); font-size: 0.82rem; margin-top: 8px; }
+    .admin-body { padding: 24px 30px; max-width: 1000px; margin: 0 auto; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--card); border-radius: 10px; padding: 4px; }
+    .tabs button {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tabs button.active { background: rgba(167,139,250,0.2); color: white; font-weight: 600; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+    }
+    .stat-card .stat-num { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .stat-card .stat-label { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--text-dim); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .btn-sm {
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .btn-danger { border-color: rgba(248,113,113,0.3); color: var(--danger); }
+    .btn-danger:hover { background: rgba(248,113,113,0.15); }
+    .btn-warn { border-color: rgba(251,191,36,0.3); color: #fbbf24; }
+    .btn-warn:hover { background: rgba(251,191,36,0.1); }
+    .comment-img-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; cursor: pointer; }
+    .empty { text-align: center; padding: 40px; color: var(--text-dim); }
+    #admin-app { display: none; }
+    @media (max-width: 640px) {
+      .admin-body { padding: 16px; }
+      table { font-size: 0.8rem; }
+      th, td { padding: 8px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 登录页 -->
+  <div id="admin-login" class="admin-login">
+    <h2>🔐 管理后台登录</h2>
+    <input type="email" id="login-email" placeholder="管理员邮箱">
+    <input type="password" id="login-password" placeholder="密码">
+    <button onclick="adminLogin()">登录</button>
+    <p class="error" id="login-error"></p>
+  </div>
+
+  <!-- 管理主体 -->
+  <div id="admin-app">
+    <div class="admin-header">
+      <h1>觉醒诗社 · 管理后台</h1>
+      <div class="admin-actions">
+        <a href="../index.html">← 返回前台</a>
+        <button onclick="adminLogout()">退出</button>
+      </div>
+    </div>
+
+    <div class="admin-body">
+      <div class="stats" id="stats"></div>
+
+      <div class="tabs">
+        <button class="active" onclick="switchTab('comments', this)">评论管理</button>
+        <button onclick="switchTab('users', this)">用户管理</button>
+      </div>
+
+      <div id="tab-comments"></div>
+      <div id="tab-users" style="display:none"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script>
+    let adminUser = null;
+
+    /* ── 登录 ── */
+    async function adminLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const errorEl = document.getElementById('login-error');
+      errorEl.textContent = '';
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { errorEl.textContent = '登录失败：' + error.message; return; }
+
+      // 检查是否为管理员
+      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', data.user.id).single();
+      if (!profile || !profile.is_admin) {
+        errorEl.textContent = '你不是管理员';
+        await supabase.auth.signOut();
+        return;
+      }
+
+      adminUser = data.user;
+      document.getElementById('admin-login').style.display = 'none';
+      document.getElementById('admin-app').style.display = 'block';
+      loadDashboard();
+    }
+
+    async function adminLogout() {
+      await supabase.auth.signOut();
+      location.reload();
+    }
+
+    /* ── 检查已有 session ── */
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single();
+      if (profile && profile.is_admin) {
+        adminUser = session.user;
+        document.getElementById('admin-login').style.display = 'none';
+        document.getElementById('admin-app').style.display = 'block';
+        loadDashboard();
+      }
+    }
+    checkSession();
+
+    /* ── Dashboard ── */
+    async function loadDashboard() {
+      await loadStats();
+      await loadComments();
+      await loadUsers();
+    }
+
+    async function loadStats() {
+      const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+      const { count: commentCount } = await supabase.from('comments').select('*', { count: 'exact', head: true });
+      const { count: soullabCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
+      const { count: objCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objectification');
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><div class="stat-num">${userCount || 0}</div><div class="stat-label">注册用户</div></div>
+        <div class="stat-card"><div class="stat-num">${commentCount || 0}</div><div class="stat-label">总评论数</div></div>
+        <div class="stat-card"><div class="stat-num">${soullabCount || 0}</div><div class="stat-label">灵性测试评论</div></div>
+        <div class="stat-card"><div class="stat-num">${objCount || 0}</div><div class="stat-label">客体化评论</div></div>
+      `;
+    }
+
+    /* ── 评论管理 ── */
+    async function loadComments() {
+      const { data: comments } = await supabase
+        .from('comments')
+        .select('*, profiles(nickname)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      const container = document.getElementById('tab-comments');
+      if (!comments || comments.length === 0) {
+        container.innerHTML = '<p class="empty">暂无评论</p>';
+        return;
+      }
+
+      container.innerHTML = `<table>
+        <thead><tr><th>用户</th><th>来源</th><th>内容</th><th>图片</th><th>时间</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${comments.map(c => `
+          <tr id="row-${c.id}" style="${c.is_hidden ? 'opacity:0.4' : ''}">
+            <td>${c.profiles?.nickname || '未知'}</td>
+            <td>${c.page_type === 'soullab' ? '灵性测试' : '客体化'}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeH(c.content || '')}</td>
+            <td>${c.image_url ? `<img class="comment-img-thumb" src="${c.image_url}" onclick="window.open(this.src)">` : '-'}</td>
+            <td style="white-space:nowrap">${new Date(c.created_at).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+            <td>${c.is_hidden ? '🚫 已隐藏' : '✅ 正常'}</td>
+            <td>
+              <button class="btn-sm btn-warn" onclick="toggleHide('${c.id}', ${!c.is_hidden})">${c.is_hidden ? '恢复' : '隐藏'}</button>
+              <button class="btn-sm btn-danger" onclick="deleteC('${c.id}')">删除</button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>`;
+    }
+
+    async function toggleHide(id, hide) {
+      await supabase.from('comments').update({ is_hidden: hide }).eq('id', id);
+      loadComments();
+      loadStats();
+    }
+
+    async function deleteC(id) {
+      if (!confirm('确定永久删除？')) return;
+      await supabase.from('comments').delete().eq('id', id);
+      loadComments();
+      loadStats();
+    }
+
+    /* ── 用户管理 ── */
+    async function loadUsers() {
+      const { data: users } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      const container = document.getElementById('tab-users');
+      if (!users || users.length === 0) {
+        container.innerHTML = '<p class="empty">暂无用户</p>';
+        return;
+      }
+
+      container.innerHTML = `<table>
+        <thead><tr><th>头像</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody>${users.map(u => `
+          <tr>
+            <td><img src="${u.avatar_url || ''}" style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,0.1)"></td>
+            <td>${escapeH(u.nickname || '')}</td>
+            <td>${u.is_admin ? '👑 管理员' : '普通用户'}</td>
+            <td>${new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
+            <td>
+              <button class="btn-sm" onclick="toggleAdmin('${u.id}', ${!u.is_admin})">${u.is_admin ? '取消管理员' : '设为管理员'}</button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>`;
+    }
+
+    async function toggleAdmin(id, makeAdmin) {
+      await supabase.from('profiles').update({ is_admin: makeAdmin }).eq('id', id);
+      loadUsers();
+    }
+
+    /* ── Tab 切换 ── */
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-comments').style.display = tab === 'comments' ? 'block' : 'none';
+      document.getElementById('tab-users').style.display = tab === 'users' ? 'block' : 'none';
+    }
+
+    function escapeH(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+  </script>
+</body>
+</html>

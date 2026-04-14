@@ -297,49 +297,6 @@ function showResult() {
   document.getElementById('result-mbti').innerHTML = p.mbti;
 
   // Character image (with cache buster)
-  const charImg = document.getElementById('character-img');
-  charImg.src = p.image + "?t=" + new Date().getTime();
-  charImg.alt = p.name + ' — 人格角色形象';
-  charImg.onclick = () => openImageModal(charImg.src);
-
-  // Tags
-  const tagsContainer = document.getElementById('result-tags');
-  tagsContainer.innerHTML = p.tags.map(t => `<span class="result-tag">#${t}</span>`).join('');
-
-  // Show result page
-  showPage('result');
-
-  // Animate meters with delay
-  setTimeout(() => {
-    animateMeter('meter-mask', p.meters.mask);
-    animateMeter('meter-awake', p.meters.awake);
-    animateMeter('meter-chill', p.meters.chill);
-    animateMeter('meter-drama', p.meters.drama);
-  }, 300);
-}
-
-function animateMeter(fillId, value) {
-  const fill = document.getElementById(fillId);
-  const valEl = document.getElementById(fillId + '-val');
-  fill.style.width = value + '%';
-  
-  // Animate number count up
-  let current = 0;
-  const step = value / 30;
-  const timer = setInterval(() => {
-    current += step;
-    if (current >= value) {
-      current = value;
-      clearInterval(timer);
-    }
-    valEl.textContent = Math.round(current) + '%';
-  }, 30);
-}
-
-/* ==============================
-   Restart & Share
-   ============================== */
-function restartTest() {
   showPage('landing');
 }
 
