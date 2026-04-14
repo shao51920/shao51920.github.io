@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
+<body class="landing-active">
   <!-- 背景动画 -->
   <div class="bg-gradient"></div>
 
@@ -24,8 +24,8 @@
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <polyline points="9 22 9 12 15 12 15 22" />
     </svg>
-    <span>主</span>
   </a>
+
 
   <!-- 开始页 -->
   <section id="landing" class="page active">
@@ -72,6 +72,12 @@
     </div>
 
     <div class="quiz-footer">
+      <a href="../index.html" class="btn-home-global" title="返回主页">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+      </a>
       <button class="btn-secondary" id="prev-btn" onclick="prevQuestion()" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7" />

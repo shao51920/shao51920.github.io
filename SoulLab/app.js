@@ -90,8 +90,6 @@ function showPage(pageId) {
   const targetPage = document.getElementById(pageId);
   if (targetPage) {
     targetPage.classList.add('active');
-    targetPage.style.display = 'block';
-    targetPage.style.animation = 'fadeSlideIn 0.6s ease forwards';
   }
   
   // 更新 body class 用于 CSS 控制按钮显隐
@@ -488,3 +486,10 @@ function closeImageModal() {
     modal.classList.remove('active');
   }, 300);
 }
+// 监听 URL 参数判断是否直接开始
+window.addEventListener('load', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('start') === 'true') {
+    startTest();
+  }
+});

@@ -134,22 +134,25 @@ body {
   justify-content: space-between;
 }
 
-.nav-logo {
+.nav-home-root-btn {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--bg-card);
   color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
   transition: all var(--transition-base);
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-full);
 }
 
-.nav-logo:hover {
-  color: var(--text-primary);
+.nav-home-root-btn:hover {
   background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--accent-1);
+  transform: translateY(-1px);
 }
 
 .nav-title {

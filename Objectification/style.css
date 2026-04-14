@@ -294,6 +294,30 @@ body {
   z-index: 10;
 }
 
+.btn-home-global {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--card-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--accent-main);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.btn-home-global:hover {
+  background: var(--accent-main);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
 /* Loading */
 .spinner {
   width: 60px;
@@ -452,20 +476,19 @@ body {
 .nav-home-btn {
   position: fixed;
   top: 20px;
-  right: 20px;
+  left: 20px;
   z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   background: var(--card-bg);
   backdrop-filter: blur(10px);
   border: 1px solid var(--accent-main);
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   color: var(--text-main);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
   transition: all 0.3s ease;
   box-shadow: var(--shadow-sm);
 }
@@ -523,8 +546,13 @@ body:not(.landing-active):not(.result-active) .nav-home-btn {
     padding: 30px 20px;
   }
   .title-main { font-size: 1.8rem; }
-  .question-text { font-size: 1.2rem; }
-  .quiz-body { padding: 0 10px; margin: 80px auto; }
+  .question-text { font-size: 1.15rem; margin-bottom: 20px; }
+  .quiz-body { padding: 10px 10px; margin: 20px auto; }
+  .quiz-header { padding: 10px 20px; }
+  .progress-text { margin-bottom: 5px; font-size: 0.8rem; }
+  .option { padding: 12px 15px; border-radius: 12px; }
+  .option-text { font-size: 0.95rem; }
+  .quiz-footer { padding: 15px; }
   .share-credit-box {
     /* 强制在移动端也保持水平排列，或者根据要求在375-1440px内水平分栏 */
     flex-direction: row; 

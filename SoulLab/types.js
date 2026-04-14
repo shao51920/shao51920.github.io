@@ -231,7 +231,7 @@
 // 跳转到测试
 function goToTest() {
   // 跳转到首页并自动开始测试
-  window.location.href = 'index.html';
+  window.location.href = 'index.html?start=true';
 }
 
 /* ==============================

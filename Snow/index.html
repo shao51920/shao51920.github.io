@@ -171,7 +171,6 @@
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             <polyline points="9 22 9 12 15 12 15 22" />
         </svg>
-        <span>主</span>
     </a>
 
     <canvas id="snowCanvas"></canvas>
@@ -411,8 +410,8 @@
             if (!isDragging) return;
             e.preventDefault();
             const touch = e.touches[0];
-            angleY += (touch.clientX - lastX) * 0.005;
-            angleX += (touch.clientY - lastY) * 0.005;
+            angleY += (touch.clientX - lastX) * 0.01;
+            angleX += (touch.clientY - lastY) * 0.01;
             angleX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, angleX));
             lastX = touch.clientX;
             lastY = touch.clientY;
