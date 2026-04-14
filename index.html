@@ -108,7 +108,7 @@
 
     /* 首页专属登录欢迎样式 */
     .home-auth-welcome {
-      margin: 30px auto;
+      margin: 20px auto 10px auto;
       font-size: 1.1rem;
       color: rgba(255, 255, 255, 0.7);
       letter-spacing: 2px;
@@ -387,7 +387,7 @@
       display: flex;
       justify-content: center;
       gap: 20px;
-      margin-top: 5rem; /* 增加间距（约下移 1cm） */
+      margin-top: 1.5rem; /* 调整间距，使入口抬升到登录位置下方 */
       opacity: 0;
       animation: fadeSlideUp 1s ease 3.2s forwards;
       perspective: 1000px;
@@ -587,7 +587,7 @@
 
     <!-- 登录欢迎入口 -->
     <div id="home-greeting" class="home-auth-welcome show">
-      你好，欢迎登录。 <span class="home-auth-login-trigger" onclick="openAuthModal()">立即探索更多 →</span>
+      你好，<span class="home-auth-login-trigger" onclick="openAuthModal()">登录</span>
     </div>
 
     <!-- 测评入口 -->
@@ -875,7 +875,7 @@
       if (currentUser && currentProfile) {
         greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${currentProfile.nickname || '觉者'}</span>。 愿你照亮真实的内在。`;
       } else {
-        greetingEl.innerHTML = `你好，欢迎登录。 <span class="home-auth-login-trigger" onclick="openAuthModal()">立即登录/注册 →</span>`;
+        greetingEl.innerHTML = `你好，<span class="home-auth-login-trigger" onclick="openAuthModal()">登录</span>`;
       }
     };
   </script>
