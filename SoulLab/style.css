@@ -936,10 +936,7 @@ body {
   font-family: var(--font-display);
   font-size: clamp(2rem, 6vw, 3rem);
   font-weight: 800;
-  background: var(--gradient-main);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #0a0a1a;
   margin-bottom: 0;
   line-height: 1.3;
   display: inline-block;
@@ -955,12 +952,16 @@ body {
 }
 
 .result-title-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  background: var(--gradient-main);
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 40px rgba(167, 139, 250, 0.3);
 }
 
 .result-subtitle {
