@@ -58,7 +58,7 @@
         </div>
         <div class="intro-card">
           <div class="intro-icon">⚡</div>
-          <p id="soullab-participant-count">已有 -- 人参与测试</p>
+          <p>已有 1,452 人参与测试</p>
         </div>
       </div>
       <div class="action-buttons-wrapper">
@@ -230,10 +230,10 @@
             style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 6px; white-space: nowrap;">扫码测试灵格</span>
         </div>
       </div>
-      </div>
+    </div>
 
-      <!-- 评论区 -->
-      <div id="comments-section" data-page="soullab" style="margin-top: 40px;"></div>
+    <!-- 评论区 -->
+    <div id="comments-section" data-page="soullab" style="margin-top: 40px;"></div>
     </div>
   </section>
 
@@ -259,7 +259,7 @@
       if (typeof startTest === 'function') {
         startTest();
       } else {
-        window.addEventListener('load', () => { if(typeof startTest === 'function') startTest(); });
+        window.addEventListener('load', () => { if (typeof startTest === 'function') startTest(); });
       }
     }
     // 结果页显示后初始化评论

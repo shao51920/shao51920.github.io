@@ -188,13 +188,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // Supabase 配置（内联以避免路径问题）
-    const SUPABASE_URL = 'https://xcwdgwvtgbqcsslbgtpy.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_g5USxyN0qcqv9peaZE_irQ_B3QIPV_H';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  </script>
-  <script>
-    let adminUser = null;
+    // Supabase 客户端初始化（使用 db 避免变量提升问题）
+    window.db = window.supabase.createClient(
+      'https://xcwdgwvtgbqcsslbgtpy.supabase.co',
+      'sb_publishable_g5USxyN0qcqv9peaZE_irQ_B3QIPV_H'
+    );
+
+    var adminUser = null;
 
     /* ── 登录 ── */
     async function adminLogin() {
@@ -203,14 +203,14 @@
       const errorEl = document.getElementById('login-error');
       errorEl.textContent = '';
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await db.auth.signInWithPassword({ email, password });
       if (error) { errorEl.textContent = '登录失败：' + error.message; return; }
 
       // 检查是否为管理员
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', data.user.id).single();
+      const { data: profile } = await db.from('profiles').select('is_admin').eq('id', data.user.id).single();
       if (!profile || !profile.is_admin) {
         errorEl.textContent = '你不是管理员';
-        await supabase.auth.signOut();
+        await db.auth.signOut();
         return;
       }
 
@@ -221,15 +221,15 @@
     }
 
     async function adminLogout() {
-      await supabase.auth.signOut();
+      await db.auth.signOut();
       location.reload();
     }
 
     /* ── 检查已有 session ── */
     async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (!session) return;
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single();
+      const { data: profile } = await db.from('profiles').select('is_admin').eq('id', session.user.id).single();
       if (profile && profile.is_admin) {
         adminUser = session.user;
         document.getElementById('admin-login').style.display = 'none';
@@ -247,10 +247,10 @@
     }
 
     async function loadStats() {
-      const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-      const { count: commentCount } = await supabase.from('comments').select('*', { count: 'exact', head: true });
-      const { count: soullabCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
-      const { count: objCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest');
+      const { count: userCount } = await db.from('profiles').select('*', { count: 'exact', head: true });
+      const { count: commentCount } = await db.from('comments').select('*', { count: 'exact', head: true });
+      const { count: soullabCount } = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
+      const { count: objCount } = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest');
 
       document.getElementById('stats').innerHTML = `
         <div class="stat-card"><div class="stat-num">${userCount || 0}</div><div class="stat-label">注册用户</div></div>
@@ -262,7 +262,7 @@
 
     /* ── 评论管理 ── */
     async function loadComments() {
-      const { data: comments } = await supabase
+      const { data: comments } = await db
         .from('comments')
         .select('*, profiles(nickname)')
         .order('created_at', { ascending: false })
@@ -294,21 +294,21 @@
     }
 
     async function toggleHide(id, hide) {
-      await supabase.from('comments').update({ is_hidden: hide }).eq('id', id);
+      await db.from('comments').update({ is_hidden: hide }).eq('id', id);
       loadComments();
       loadStats();
     }
 
     async function deleteC(id) {
       if (!confirm('确定永久删除？')) return;
-      await supabase.from('comments').delete().eq('id', id);
+      await db.from('comments').delete().eq('id', id);
       loadComments();
       loadStats();
     }
 
     /* ── 用户管理 ── */
     async function loadUsers() {
-      const { data: users } = await supabase
+      const { data: users } = await db
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
@@ -337,7 +337,7 @@
     }
 
     async function toggleAdmin(id, makeAdmin) {
-      await supabase.from('profiles').update({ is_admin: makeAdmin }).eq('id', id);
+      await db.from('profiles').update({ is_admin: makeAdmin }).eq('id', id);
       loadUsers();
     }
 

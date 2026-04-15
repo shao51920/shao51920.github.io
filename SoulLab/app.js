@@ -397,79 +397,100 @@ function shareResult() {
 
 function generatePoster() {
   const originalResult = document.querySelector('.result-content');
-  
-  // 终极杀招：通过离屏克隆节点彻底剥离手机端的屏幕宽度限制
-  const wrapper = document.createElement('div');
-  wrapper.style.position = 'absolute';
-  wrapper.style.left = '-9999px';
-  wrapper.style.top = '0';
-  wrapper.style.width = '680px';
-  wrapper.style.background = '#0a0a1a'; // 完全匹配主背景色
-  
-  const clone = originalResult.cloneNode(true);
-  
-  // 移除海报里的操作按钮
-  const actionsClone = clone.querySelector('.result-actions');
-  if (actionsClone) {
-    actionsClone.parentNode.removeChild(actionsClone);
+  if (!originalResult) {
+    showToast('结果页未找到，请稍后再试');
+    return;
   }
-  
-  // 覆盖克隆体的样式以确保排版绝对宽敞
-  clone.style.width = '680px';
-  clone.style.maxWidth = '680px';
-  clone.style.padding = '40px 30px';
-  clone.style.margin = '0';
-  
+
+  // 克隆到离屏容器
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;background:#0a0a1a;padding:0;margin:0;z-index:-1;';
+
+  const clone = originalResult.cloneNode(true);
+
+  // 移除评论区、操作按钮
+  ['#comments-section', '.result-actions'].forEach(sel => {
+    const el = clone.querySelector(sel);
+    if (el) el.remove();
+  });
+
+  // 固定克隆体宽度
+  clone.style.cssText = 'width:680px;max-width:680px;padding:40px 30px;margin:0;box-sizing:border-box;';
+
+  // 解决 result-title（-webkit-text-fill-color 透明导致截图白字不显示）问题
+  const titleEl = clone.querySelector('.result-title');
+  if (titleEl) {
+    titleEl.style.cssText = 'color:#fff;-webkit-text-fill-color:#fff;background:none;-webkit-background-clip:unset;background-clip:unset;';
+  }
+
+  // 将 character-img 的 src 替换为 crossOrigin 加载的 dataURL 以避免污染
+  const imgEl = clone.querySelector('#character-img');
+
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
 
-  html2canvas(wrapper, {
-    backgroundColor: '#0a0a1a',
-    scale: 2,
-    useCORS: true,
-    width: 680,
-    windowWidth: 680
-  }).then(canvas => {
-    // 渲染完毕后立即销毁克隆体
-    document.body.removeChild(wrapper);
-    
-    const imgData = canvas.toDataURL('image/png');
-    
-    // 创建全屏蒙层显示生成的图片（为了兼容手机长按保存）
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.3s;';
-    
-    const hint = document.createElement('div');
-    hint.textContent = '长按图片保存或发送给朋友';
-    hint.style.cssText = 'color:rgba(255,255,255,0.9);margin-bottom:15px;font-size:15px;letter-spacing:1px;font-weight:300;';
-    
-    const img = document.createElement('img');
-    img.src = imgData;
-    img.style.cssText = 'max-width:90%;max-height:75vh;border-radius:12px;box-shadow:0 0 40px rgba(138, 43, 226, 0.3); border: 1px solid rgba(255,255,255,0.1); object-fit:contain;';
-    
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕ 关闭海报';
-    closeBtn.style.cssText = 'margin-top:20px;padding:10px 24px;background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.2);border-radius:20px;cursor:pointer;font-size:14px;transition:all 0.2s;';
-    closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.2)';
-    closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.1)';
-    closeBtn.onclick = () => {
-      overlay.style.opacity = '0';
-      setTimeout(() => document.body.removeChild(overlay), 300);
+  const doCapture = () => {
+    html2canvas(wrapper, {
+      backgroundColor: '#0a0a1a',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      imageTimeout: 15000,
+      width: 680,
+      windowWidth: 680,
+      logging: false
+    }).then(canvas => {
+      document.body.removeChild(wrapper);
+      const imgData = canvas.toDataURL('image/png');
+
+      // 蒙层展示
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.3s;';
+
+      const hint = document.createElement('p');
+      hint.textContent = '长按图片保存，或截图分享给朋友 ✨';
+      hint.style.cssText = 'color:rgba(255,255,255,0.85);margin-bottom:14px;font-size:14px;letter-spacing:1px;';
+
+      const img = document.createElement('img');
+      img.src = imgData;
+      img.style.cssText = 'max-width:90%;max-height:72vh;border-radius:14px;box-shadow:0 0 50px rgba(138,43,226,0.35);border:1px solid rgba(255,255,255,0.08);object-fit:contain;';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕ 关闭';
+      closeBtn.style.cssText = 'margin-top:18px;padding:9px 26px;background:rgba(255,255,255,0.08);color:white;border:1px solid rgba(255,255,255,0.18);border-radius:20px;cursor:pointer;font-size:14px;transition:background 0.2s;';
+      closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.18)';
+      closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.08)';
+      closeBtn.onclick = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 300); };
+
+      overlay.append(hint, img, closeBtn);
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.style.opacity = '1');
+      showToast('海报生成完毕！');
+
+    }).catch(err => {
+      if (document.body.contains(wrapper)) document.body.removeChild(wrapper);
+      console.error('海报生成失败:', err);
+      showToast('生成失败，建议直接截图保存 📸');
+    });
+  };
+
+  // 如果角色图片存在，预加载后再截图
+  if (imgEl && imgEl.src && !imgEl.src.startsWith('data:')) {
+    const preload = new Image();
+    preload.crossOrigin = 'anonymous';
+    preload.onload = () => {
+      // 把图片转为 dataURL 写回克隆体，避免 taint
+      const c = document.createElement('canvas');
+      c.width = preload.naturalWidth; c.height = preload.naturalHeight;
+      c.getContext('2d').drawImage(preload, 0, 0);
+      try { imgEl.src = c.toDataURL('image/png'); } catch(e) { /* 跨域时跳过 */ }
+      doCapture();
     };
-    
-    overlay.appendChild(hint);
-    overlay.appendChild(img);
-    overlay.appendChild(closeBtn);
-    document.body.appendChild(overlay);
-    
-    // 淡入效果
-    requestAnimationFrame(() => overlay.style.opacity = '1');
-    showToast('海报生成完毕！');
-    
-  }).catch(err => {
-    console.error(err);
-    showToast('海报生成失败，请尝试直接手机截图');
-  });
+    preload.onerror = doCapture; // 加载失败也继续截图
+    preload.src = imgEl.src.split('?')[0] + '?t=' + Date.now();
+  } else {
+    doCapture();
+  }
 }
 
 function showToast(message) {
