@@ -6,7 +6,12 @@
 let currentUser = null;
 let currentProfile = null;
 
-const AVATAR_EMOJIS = ['🙂', '😎', '🤖', '🦊', '🐼', '🦄', '🍀', '🌙', '🔥', '✨', '🎭', '🧠'];
+const AVATAR_EMOJIS = [
+  '🙂', '😄', '😆', '😉', '😊', '🥰', '😎', '🤩', '🧐', '🤖',
+  '🦊', '🐼', '🐯', '🐨', '🦁', '🦉', '🦄', '🐬', '🐳', '🦋',
+  '🌙', '⭐', '✨', '🔥', '🌈', '🍀', '🌸', '🌻', '🍃', '💫',
+  '🎭', '🎨', '🎵', '📚', '🧠', '💡', '🕊️', '☀️', '🌊', '🏔️'
+];
 
 let profileAvatarDraft = {
   emoji: '🙂',
@@ -115,6 +120,11 @@ function normalizeAuthErrorMessage(msg) {
   if (msg.includes('already registered')) return '该邮箱已注册，请直接登录';
   if (msg.includes('valid email')) return '请输入有效邮箱';
   return msg;
+}
+
+function isSignupTimeoutError(message) {
+  const msg = String(message || '');
+  return msg.includes('upstream request timeout') || msg.includes('Gateway Timeout') || msg.includes('504');
 }
 
 function escapeAttr(text) {
@@ -328,14 +338,33 @@ async function handleAuthSubmit(e) {
     if (authMode === 'register') {
       const nickname = document.getElementById('auth-nickname').value.trim() || '匿名觉者';
       const avatarEmoji = pickAvatarEmoji(email || nickname || Date.now());
-      const { data, error } = await client.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { nickname, avatar_emoji: avatarEmoji }
+      let data = null;
+
+      try {
+        const signupResult = await client.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { nickname, avatar_emoji: avatarEmoji }
+          }
+        });
+        data = signupResult.data;
+        if (signupResult.error) throw signupResult.error;
+      } catch (signupErr) {
+        if (!isSignupTimeoutError(signupErr?.message)) throw signupErr;
+
+        // Timeout may happen after upstream accepted the signup request.
+        const { error: signInError } = await client.auth.signInWithPassword({ email, password });
+        if (!signInError) {
+          closeAuthModal();
+          return;
         }
-      });
-      if (error) throw error;
+        if (String(signInError.message || '').includes('Email not confirmed')) {
+          errorEl.textContent = '注册请求可能已成功，但邮件服务超时。请检查邮箱验证邮件后再登录。';
+          return;
+        }
+        throw signupErr;
+      }
 
       if (data.user && data.session) {
         await client.from('profiles').upsert({

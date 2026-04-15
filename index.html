@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>觉醒诗社</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
   <meta name="description" content="觉醒是一场从内部燃起的革命。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -719,6 +720,9 @@
     </svg>
   </div>
 
+  <!-- 右上角个人资料入口 -->
+  <div id="auth-status"></div>
+
   <!-- 主内容 -->
   <main id="main">
     <!-- 神圣符文环 -->
@@ -1076,15 +1080,25 @@
   <script src="shared/auth.js"></script>
   <script>
     // 覆盖 shared/auth.js 中的 renderAuthUI 以适应首页特殊展示
-    const _baseRenderAuthUI = renderAuthUI;
     renderAuthUI = function () {
-      _baseRenderAuthUI();
+      const statusEl = document.getElementById('auth-status');
       const greetingEl = document.getElementById('home-greeting');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <button class="auth-login-btn" onclick="${currentUser ? 'openEditProfile()' : 'openAuthModal()'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            个人资料
+          </button>
+        `;
+      }
       if (!greetingEl) return;
 
       if (currentUser) {
         const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '觉者';
-        greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${displayName}</span>。 `;
+        greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${displayName}</span>`;
       } else {
         greetingEl.innerHTML = `你好，欢迎<span class="home-auth-login-trigger" onclick="openAuthModal()">登录</span>`;
       }
