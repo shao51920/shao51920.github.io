@@ -99,6 +99,15 @@ function normalizeAuthErrorMessage(msg) {
   if (msg.includes('Cannot read properties of undefined') && msg.includes('signUp')) {
     return '认证模块初始化失败，请刷新页面后重试';
   }
+  if (msg.includes('over_email_send_rate_limit') || msg.includes('email rate limit exceeded') || msg.includes('Too Many Requests')) {
+    return '当前注册邮件发送过于频繁，请稍后再试（或在 Supabase 调高邮件发送额度）';
+  }
+  if (msg.includes('upstream request timeout') || msg.includes('Gateway Timeout') || msg.includes('504')) {
+    return '注册邮件发送超时：请检查 Supabase 自定义 SMTP 连通性与账号配置';
+  }
+  if (msg.includes('email_address_invalid') || msg.includes('Unable to validate email address')) {
+    return '邮箱地址格式不正确，请更换常用邮箱重试';
+  }
   if (msg.includes('Invalid login')) return '邮箱或密码错误';
   if (msg.includes('Email not confirmed')) return '邮箱未验证，请先去邮箱完成验证';
   if (msg.includes('Signups not allowed')) return '当前站点暂未开放注册，请联系管理员';
@@ -247,15 +256,15 @@ function openAuthModal() {
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
           <label>邮箱</label>
-          <input type="email" id="auth-email" placeholder="your@email.com" required>
+          <input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email">
         </div>
         <div class="auth-field">
           <label>密码</label>
-          <input type="password" id="auth-password" placeholder="至少6位" required minlength="6">
+          <input type="password" id="auth-password" placeholder="至少6位" required minlength="6" autocomplete="current-password">
         </div>
         <div class="auth-field auth-nickname-field" style="display:none">
           <label>昵称</label>
-          <input type="text" id="auth-nickname" placeholder="给自己取个名字">
+          <input type="text" id="auth-nickname" placeholder="给自己取个名字" autocomplete="nickname">
         </div>
         <p class="auth-error" id="auth-error"></p>
         <button type="submit" class="auth-submit-btn" id="auth-submit-btn">登录</button>
@@ -283,13 +292,16 @@ function switchAuthTab(mode, btn) {
 
   const nicknameField = document.querySelector('.auth-nickname-field');
   const submitBtn = document.getElementById('auth-submit-btn');
+  const passwordInput = document.getElementById('auth-password');
 
   if (mode === 'register') {
     nicknameField.style.display = 'block';
     submitBtn.textContent = '注册';
+    if (passwordInput) passwordInput.setAttribute('autocomplete', 'new-password');
   } else {
     nicknameField.style.display = 'none';
     submitBtn.textContent = '登录';
+    if (passwordInput) passwordInput.setAttribute('autocomplete', 'current-password');
   }
   document.getElementById('auth-error').textContent = '';
 }

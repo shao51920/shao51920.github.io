@@ -848,7 +848,11 @@
       canvas.height = window.innerHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
+    let onViewportResize = null;
+    window.addEventListener('resize', () => {
+      resize();
+      if (typeof onViewportResize === 'function') onViewportResize();
+    });
 
     const STARS = 280;
     const stars = Array.from({ length: STARS }, () => ({
@@ -929,17 +933,25 @@
     const dotsContainer = document.getElementById('runeDots');
     const dotCount = 12;
     const ring = document.getElementById('runeRing');
+    let ringSize = 0;
+    let ringRadiusPercent = 0;
+    const runeDots = [];
+
+    function refreshRingMetrics() {
+      ringSize = ring.getBoundingClientRect().width || ring.offsetWidth || 1;
+      ringRadiusPercent = (ringSize / 2 - 4) / ringSize * 100 - 0.5;
+    }
 
     function placeDots() {
       dotsContainer.innerHTML = '';
-      const size = ring.offsetWidth;
-      const radius = size / 2 - 4;
+      runeDots.length = 0;
+      refreshRingMetrics();
       for (let i = 0; i < dotCount; i++) {
         const angle = (i / dotCount) * 2 * Math.PI;
         const dot = document.createElement('div');
         dot.className = 'rune-dot';
-        const x = 50 + (radius / size * 100 - 0.5) * Math.cos(angle);
-        const y = 50 + (radius / size * 100 - 0.5) * Math.sin(angle);
+        const x = 50 + ringRadiusPercent * Math.cos(angle);
+        const y = 50 + ringRadiusPercent * Math.sin(angle);
         dot.style.cssText = `
           left: ${x}%;
           top: ${y}%;
@@ -949,21 +961,20 @@
           height: ${i % 4 === 0 ? '6px' : '3px'};
         `;
         dotsContainer.appendChild(dot);
+        runeDots.push(dot);
       }
     }
     placeDots();
+    onViewportResize = placeDots;
 
     // 让点旋转
     let dotAngle = 0;
     (function rotateDots() {
       dotAngle += 0.005;
-      const size = ring.offsetWidth;
-      const radius = size / 2 - 4;
-      const dots = dotsContainer.querySelectorAll('.rune-dot');
-      dots.forEach((dot, i) => {
+      runeDots.forEach((dot, i) => {
         const angle = (i / dotCount) * 2 * Math.PI + dotAngle;
-        const x = 50 + (radius / size * 100 - 0.5) * Math.cos(angle);
-        const y = 50 + (radius / size * 100 - 0.5) * Math.sin(angle);
+        const x = 50 + ringRadiusPercent * Math.cos(angle);
+        const y = 50 + ringRadiusPercent * Math.sin(angle);
         dot.style.left = x + '%';
         dot.style.top = y + '%';
       });
@@ -1023,9 +1034,12 @@
           animation:rippleAnim 0.8s ease-out forwards;
           pointer-events:none;
         `;
-        const style = document.createElement('style');
-        style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
-        document.head.appendChild(style);
+        if (!document.getElementById('ripple-keyframes')) {
+          const style = document.createElement('style');
+          style.id = 'ripple-keyframes';
+          style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
+          document.head.appendChild(style);
+        }
         this.appendChild(ripple);
         setTimeout(() => ripple.remove(), 800);
       });
@@ -1034,17 +1048,27 @@
     /* ────────────────────────────────
        6. 鼠标视差
     ──────────────────────────────── */
+    const runeRingWrapper = document.querySelector('.rune-ring-wrapper');
+    const titleZh = document.querySelector('.title-zh');
+    let parallaxDX = 0;
+    let parallaxDY = 0;
+
     document.addEventListener('mousemove', e => {
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
-      const dx = (e.clientX - cx) / cx;
-      const dy = (e.clientY - cy) / cy;
-      document.querySelector('.rune-ring-wrapper').style.transform =
-        `translate(${dx * 8}px, ${dy * 8}px) scale(1)`;
-      document.querySelector('.title-zh').style.textShadow =
-        `${dx * 10}px ${dy * 10}px 40px rgba(201,168,76,0.3)`;
-
+      parallaxDX = (e.clientX - cx) / cx;
+      parallaxDY = (e.clientY - cy) / cy;
     });
+
+    (function renderParallax() {
+      if (runeRingWrapper) {
+        runeRingWrapper.style.transform = `translate(${parallaxDX * 8}px, ${parallaxDY * 8}px) scale(1)`;
+      }
+      if (titleZh) {
+        titleZh.style.textShadow = `${parallaxDX * 10}px ${parallaxDY * 10}px 40px rgba(201,168,76,0.3)`;
+      }
+      requestAnimationFrame(renderParallax);
+    })();
   </script>
   <footer
     style="position: fixed; bottom: 1rem; width: 100%; text-align: center; font-size: 0.7rem; color: rgba(255,255,255,0.2); z-index: 5; font-family: 'Noto Serif SC', serif; letter-spacing: 0.3em; pointer-events: none;">
