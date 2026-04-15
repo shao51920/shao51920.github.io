@@ -5,9 +5,19 @@ let totalScore = 0;
 /* ==============================
    Load Participant Count
    ============================== */
+function getAppSupabaseClient() {
+  if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
+  if (window.db && typeof window.db.from === 'function') return window.db;
+  if (typeof supabase !== 'undefined' && supabase && typeof supabase.from === 'function') return supabase;
+  return null;
+}
+
 async function loadParticipantCount() {
+  const client = getAppSupabaseClient();
+  if (!client) return;
+
   try {
-    const { count, error } = await supabase
+    const { count, error } = await client
       .from('comments')
       .select('*', { count: 'exact', head: true })
       .eq('page_type', 'objtest');
@@ -28,8 +38,10 @@ async function loadParticipantCount() {
 }
 
 // 页面加载时获取参与人数
-if (typeof supabase !== 'undefined') {
+if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', loadParticipantCount);
+} else {
+  loadParticipantCount();
 }
 
 function showPage(pageId) {

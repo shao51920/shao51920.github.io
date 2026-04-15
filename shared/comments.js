@@ -10,9 +10,9 @@ let commentsFeatureAvailable = true;
 let commentsProfileMap = {};
 
 function getCommentsClient() {
-  if (typeof supabase !== 'undefined' && supabase) return supabase;
-  if (window.supabaseClient) return window.supabaseClient;
-  if (window.db) return window.db;
+  if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
+  if (window.db && typeof window.db.from === 'function') return window.db;
+  if (typeof supabase !== 'undefined' && supabase && typeof supabase.from === 'function') return supabase;
   return null;
 }
 

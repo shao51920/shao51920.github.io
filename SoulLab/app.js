@@ -8,9 +8,26 @@ let scores = {};   // { personalityKey: totalScore }
 /* ==============================
    Load Participant Count
    ============================== */
+function getAppSupabaseClient() {
+  if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
+  if (window.db && typeof window.db.from === 'function') return window.db;
+  if (typeof supabase !== 'undefined' && supabase && typeof supabase.from === 'function') return supabase;
+  return null;
+}
+
+function getDisplayNickname() {
+  return (typeof currentProfile !== 'undefined' ? currentProfile?.nickname : '')
+    || (typeof currentUser !== 'undefined' ? currentUser?.user_metadata?.nickname : '')
+    || (typeof currentUser !== 'undefined' ? currentUser?.email : '')
+    || '';
+}
+
 async function loadParticipantCount() {
+  const client = getAppSupabaseClient();
+  if (!client) return;
+
   try {
-    const { count, error } = await supabase
+    const { count, error } = await client
       .from('comments')
       .select('*', { count: 'exact', head: true })
       .eq('page_type', 'soullab');
@@ -31,8 +48,10 @@ async function loadParticipantCount() {
 }
 
 // 页面加载时获取参与人数
-if (typeof supabase !== 'undefined') {
+if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', loadParticipantCount);
+} else {
+  loadParticipantCount();
 }
 
 /* ==============================
@@ -320,8 +339,13 @@ function showResult() {
   });
 
   const p = personalities[maxKey];
+  const nickname = getDisplayNickname();
 
   // Populate result page
+  const typeLabel = document.getElementById('result-type-label');
+  if (typeLabel) {
+    typeLabel.textContent = nickname ? `${nickname}，你的人格类型是` : '你的人格类型是';
+  }
   document.getElementById('result-badge').textContent = p.emoji;
   document.getElementById('result-title').textContent = p.name;
   document.getElementById('result-subtitle').textContent = p.subtitle;

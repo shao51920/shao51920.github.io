@@ -9,7 +9,8 @@ let currentProfile = null;
 const AVATAR_EMOJIS = [
   '🙂', '😄', '😆', '😉', '😊', '🥰', '😎', '🤩', '🧐', '🤖',
   '🦊', '🐼', '🐯', '🐨', '🦁', '🦉', '🦄', '🐬', '🐳', '🦋',
-  '🌙', '⭐', '✨', '🔥', '🌈', '🍀', '🌸', '🌻', '🍃', '💫',
+  '🐶', '🐱', '🌙', '⭐', '✨', '🔥', '🌈', '🍀', '🌸', '🌻',
+  '🍃', '💫',
   '🎭', '🎨', '🎵', '📚', '🧠', '💡', '🕊️', '☀️', '🌊', '🏔️'
 ];
 
@@ -22,10 +23,9 @@ let profileAvatarDraft = {
 const PROFILE_AVATAR_CANDIDATE_FIELDS = ['avatar_url', 'avatar', 'avatar_emoji'];
 let resolvedProfileAvatarField = null;
 let profileAvatarFieldResolved = false;
-let pendingOtpEmail = '';
-let otpCooldownTimer = null;
-let otpCooldownSeconds = 0;
+let authMode = 'login';
 const NETWORK_TIMEOUT_MS = 12000;
+const MIN_PASSWORD_LENGTH = 6;
 
 function getAuthClient() {
   if (typeof supabase !== 'undefined' && supabase?.auth) return supabase;
@@ -125,10 +125,13 @@ function normalizeAuthErrorMessage(msg) {
   if (msg.includes('email_address_invalid') || msg.includes('Unable to validate email address')) {
     return '邮箱地址格式不正确，请更换常用邮箱重试';
   }
+  if (msg.includes('Password should be at least')) return `密码至少需要 ${MIN_PASSWORD_LENGTH} 位`;
+  if (lowerMsg.includes('weak password')) return `密码强度不足，请至少使用 ${MIN_PASSWORD_LENGTH} 位并混合字母数字`;
   if (msg.includes('Invalid login')) return '邮箱或密码错误';
   if (msg.includes('Email not confirmed')) return '邮箱未验证，请先去邮箱完成验证';
   if (msg.includes('Signups not allowed')) return '当前站点暂未开放注册，请联系管理员';
   if (msg.includes('Invalid API key')) return '站点认证配置异常（Supabase Key 无效）';
+  if (lowerMsg.includes('user already registered') || lowerMsg.includes('already registered')) return '该邮箱已注册，请直接登录';
   if (lowerMsg.includes('invalid') && lowerMsg.includes('token')) return '验证码无效，请检查后重新输入';
   if (lowerMsg.includes('expired') && lowerMsg.includes('token')) return '验证码已过期，请重新获取';
   if (lowerMsg.includes('otp_expired')) return '验证码已过期，请重新获取';
@@ -429,7 +432,7 @@ document.addEventListener('click', (e) => {
 function openAuthModal() {
   const existing = document.getElementById('auth-modal');
   if (existing) existing.remove();
-  pendingOtpEmail = '';
+  authMode = 'login';
 
   const modal = document.createElement('div');
   modal.id = 'auth-modal';
@@ -438,8 +441,12 @@ function openAuthModal() {
     <div class="auth-modal-backdrop" onclick="closeAuthModal()"></div>
     <div class="auth-modal-content">
       <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
-      <h3 class="auth-modal-title">邮箱验证码登录</h3>
-      <p class="auth-modal-sub auth-modal-sub-main">验证码验证成功后会自动回到已登录状态</p>
+      <div class="auth-mode-switch">
+        <button type="button" class="auth-mode-tab active" id="auth-tab-login" onclick="setAuthMode('login')">登录</button>
+        <button type="button" class="auth-mode-tab" id="auth-tab-register" onclick="setAuthMode('register')">注册</button>
+      </div>
+      <h3 class="auth-modal-title" id="auth-modal-title">邮箱登录</h3>
+      <p class="auth-modal-sub auth-modal-sub-main" id="auth-modal-sub">登录后可获得更多权限。</p>
 
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
@@ -447,32 +454,32 @@ function openAuthModal() {
           <input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email">
         </div>
 
-        <div class="auth-otp-row">
-          <div class="auth-field auth-otp-code-field">
-            <label>验证码</label>
-            <input type="text" id="auth-code" placeholder="输入 6 位验证码" required autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]*">
-          </div>
-          <button type="button" class="auth-otp-send-btn" id="auth-send-btn" onclick="sendEmailOtpCode()">发送验证码</button>
+        <div class="auth-field">
+          <label>密码</label>
+          <input type="password" id="auth-password" placeholder="请输入密码" required autocomplete="current-password" minlength="6">
         </div>
 
-        <p class="auth-hint" id="auth-hint">首次使用会自动创建账号</p>
+        <div class="auth-field auth-field-row is-hidden" id="auth-confirm-row">
+          <label>确认密码</label>
+          <input type="password" id="auth-confirm-password" placeholder="再次输入密码" autocomplete="new-password" minlength="6">
+        </div>
+
+        <p class="auth-hint" id="auth-hint">使用邮箱和密码直接登录。</p>
         <p class="auth-error" id="auth-error"></p>
-        <button type="submit" class="auth-submit-btn" id="auth-submit-btn" disabled>验证码登录</button>
+        <button type="submit" class="auth-submit-btn" id="auth-submit-btn">登录</button>
       </form>
     </div>
   `;
   document.body.appendChild(modal);
   requestAnimationFrame(() => modal.classList.add('show'));
 
-  const codeInput = document.getElementById('auth-code');
   const emailInput = document.getElementById('auth-email');
-  if (codeInput) codeInput.addEventListener('input', updateOtpSubmitState);
-  if (emailInput) emailInput.addEventListener('input', () => {
-    const hintEl = document.getElementById('auth-hint');
-    if (hintEl && pendingOtpEmail && emailInput.value.trim() !== pendingOtpEmail) {
-      hintEl.textContent = '邮箱已更改，请重新发送验证码';
-    }
-  });
+  const passwordInput = document.getElementById('auth-password');
+  const confirmInput = document.getElementById('auth-confirm-password');
+  if (emailInput) emailInput.addEventListener('input', updateAuthSubmitState);
+  if (passwordInput) passwordInput.addEventListener('input', updateAuthSubmitState);
+  if (confirmInput) confirmInput.addEventListener('input', updateAuthSubmitState);
+  setAuthMode('login');
 }
 
 function closeAuthModal() {
@@ -481,19 +488,51 @@ function closeAuthModal() {
     modal.classList.remove('show');
     setTimeout(() => modal.remove(), 300);
   }
-  pendingOtpEmail = '';
-  if (otpCooldownTimer) {
-    clearInterval(otpCooldownTimer);
-    otpCooldownTimer = null;
-  }
-  otpCooldownSeconds = 0;
 }
 
-function updateOtpSubmitState() {
+function setAuthMode(mode) {
+  authMode = mode === 'register' ? 'register' : 'login';
+  updateAuthModalUI();
+}
+
+function updateAuthModalUI() {
+  const loginTab = document.getElementById('auth-tab-login');
+  const registerTab = document.getElementById('auth-tab-register');
+  const titleEl = document.getElementById('auth-modal-title');
+  const subEl = document.getElementById('auth-modal-sub');
+  const hintEl = document.getElementById('auth-hint');
+  const confirmRow = document.getElementById('auth-confirm-row');
+  const passwordInput = document.getElementById('auth-password');
+  const confirmInput = document.getElementById('auth-confirm-password');
   const submitBtn = document.getElementById('auth-submit-btn');
-  const codeInput = document.getElementById('auth-code');
-  if (!submitBtn || !codeInput) return;
-  submitBtn.disabled = !codeInput.value.trim();
+  if (!loginTab || !registerTab || !titleEl || !subEl || !hintEl || !confirmRow || !passwordInput || !confirmInput || !submitBtn) return;
+
+  const registerMode = authMode === 'register';
+  loginTab.classList.toggle('active', !registerMode);
+  registerTab.classList.toggle('active', registerMode);
+  titleEl.textContent = registerMode ? '邮箱注册' : '邮箱登录';
+  subEl.textContent = registerMode ? '注册后可直接使用邮箱和密码登录。' : '登录后可获得更多权限。';
+  hintEl.textContent = registerMode ? '如开启邮箱确认，注册后需先完成验证。' : '使用邮箱和密码直接登录。';
+  confirmRow.classList.toggle('is-hidden', !registerMode);
+  passwordInput.placeholder = registerMode ? '至少 6 位密码' : '请输入密码';
+  passwordInput.autocomplete = registerMode ? 'new-password' : 'current-password';
+  confirmInput.required = registerMode;
+  submitBtn.textContent = registerMode ? '创建账号' : '登录';
+  updateAuthSubmitState();
+}
+
+function updateAuthSubmitState() {
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const confirmInput = document.getElementById('auth-confirm-password');
+  if (!submitBtn || !emailInput || !passwordInput || !confirmInput) return;
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+  const confirm = confirmInput.value.trim();
+  const registerMode = authMode === 'register';
+  submitBtn.disabled = !email || !password || (registerMode && !confirm);
 }
 
 function setAuthHint(message) {
@@ -501,90 +540,92 @@ function setAuthHint(message) {
   if (hintEl) hintEl.textContent = message;
 }
 
-function setSendButtonLabel() {
-  const sendBtn = document.getElementById('auth-send-btn');
-  if (!sendBtn) return;
-  sendBtn.textContent = otpCooldownSeconds > 0 ? `${otpCooldownSeconds}s后重发` : '发送验证码';
-  sendBtn.disabled = otpCooldownSeconds > 0;
+function deriveNicknameFromEmail(email) {
+  const prefix = String(email || '').split('@')[0].trim();
+  return prefix || '匿名觉者';
 }
 
-function startOtpCooldown(seconds) {
-  otpCooldownSeconds = seconds;
-  setSendButtonLabel();
-  if (otpCooldownTimer) clearInterval(otpCooldownTimer);
-  otpCooldownTimer = setInterval(() => {
-    otpCooldownSeconds -= 1;
-    if (otpCooldownSeconds <= 0) {
-      otpCooldownSeconds = 0;
-      clearInterval(otpCooldownTimer);
-      otpCooldownTimer = null;
-    }
-    setSendButtonLabel();
-  }, 1000);
-}
+async function finishPasswordAuth(client, authedUser) {
+  if (!authedUser?.id) return;
 
-async function sendEmailOtpCode() {
-  const client = getAuthClient();
-  const emailInput = document.getElementById('auth-email');
-  const errorEl = document.getElementById('auth-error');
-  const sendBtn = document.getElementById('auth-send-btn');
-  const codeInput = document.getElementById('auth-code');
-  if (!client?.auth || !emailInput || !sendBtn || !errorEl) return;
-
-  const email = emailInput.value.trim().toLowerCase();
-  if (!email) {
-    errorEl.textContent = '请输入邮箱';
-    return;
-  }
-
-  errorEl.textContent = '';
-  sendBtn.disabled = true;
-  sendBtn.textContent = '发送中...';
-  setAuthHint('正在发送验证码，请稍候');
+  const localProfile = buildLocalProfile(authedUser);
+  currentUser = authedUser;
+  currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
 
   try {
-    const { error } = await withTimeout(
-      client.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true }
+    await withTimeout(
+      upsertProfileCompat(
+        client,
+        {
+          id: authedUser.id,
+          email: authedUser.email || '',
+          nickname: localProfile.nickname
+        },
+        localProfile.avatar_url,
+        authedUser.id
+      ),
+      NETWORK_TIMEOUT_MS,
+      '同步用户资料超时'
+    );
+  } catch (_error) {
+    // Keep the auth flow usable even if profile sync is temporarily blocked.
+  }
+
+  try {
+    await withTimeout(
+      client.auth.updateUser({
+        data: {
+          nickname: localProfile.nickname,
+          avatar_emoji: getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id),
+          avatar_url: localProfile.avatar_url
+        }
       }),
       NETWORK_TIMEOUT_MS,
-      '发送验证码超时'
+      '更新用户元数据超时'
     );
-    if (error) throw error;
-
-    pendingOtpEmail = email;
-    setAuthHint(`验证码已发送到 ${email}`);
-    startOtpCooldown(60);
-    if (codeInput) codeInput.focus();
-    updateOtpSubmitState();
-  } catch (err) {
-    errorEl.textContent = normalizeAuthErrorMessage(err?.message || '验证码发送失败');
-    sendBtn.disabled = false;
-    sendBtn.textContent = '发送验证码';
-    setAuthHint('首次使用会自动创建账号');
+  } catch (_error) {
+    // Metadata sync is a fallback, not a hard requirement for login success.
   }
+
+  currentUser = {
+    ...authedUser,
+    user_metadata: {
+      ...(authedUser.user_metadata || {}),
+      nickname: localProfile.nickname,
+      avatar_emoji: getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id),
+      avatar_url: localProfile.avatar_url
+    }
+  };
+
+  try {
+    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
+  } catch (_error) {
+    currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+  }
+
+  renderAuthUI();
 }
 
-/* ── 提交验证码登录 ── */
 async function handleAuthSubmit(e) {
   e.preventDefault();
   const client = getAuthClient();
   const emailInput = document.getElementById('auth-email');
-  const codeInput = document.getElementById('auth-code');
+  const passwordInput = document.getElementById('auth-password');
+  const confirmInput = document.getElementById('auth-confirm-password');
   const errorEl = document.getElementById('auth-error');
   const submitBtn = document.getElementById('auth-submit-btn');
-  if (!emailInput || !codeInput || !submitBtn || !errorEl) return;
+  if (!emailInput || !passwordInput || !confirmInput || !submitBtn || !errorEl) return;
 
-  const email = (pendingOtpEmail || emailInput.value.trim()).toLowerCase();
-  const token = codeInput.value.trim();
-  if (!email || !token) {
-    errorEl.textContent = '请输入邮箱和验证码';
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+  const confirmPassword = confirmInput.value.trim();
+  if (!email || !password) {
+    errorEl.textContent = '请输入邮箱和密码';
     return;
   }
 
   submitBtn.disabled = true;
-  submitBtn.textContent = '验证中...';
+  submitBtn.textContent = authMode === 'register' ? '注册中...' : '登录中...';
   errorEl.textContent = '';
 
   try {
@@ -592,89 +633,67 @@ async function handleAuthSubmit(e) {
       throw new Error('认证模块初始化失败，请刷新页面后重试');
     }
 
-    const { data, error } = await withTimeout(
-      client.auth.verifyOtp({
-        email,
-        token,
-        type: 'email'
-      }),
-      NETWORK_TIMEOUT_MS,
-      '验证码验证超时'
-    );
-    if (error) throw error;
-
-    let authedUser = data?.user || data?.session?.user || null;
-    if (!authedUser) {
-      const { data: userData } = await withTimeout(
-        client.auth.getUser(),
-        NETWORK_TIMEOUT_MS,
-        '读取用户信息超时'
-      );
-      authedUser = userData?.user || null;
-    }
-
-    if (authedUser?.id) {
-      const localProfile = buildLocalProfile(authedUser);
-      currentUser = authedUser;
-      currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
-      renderAuthUI();
-      closeAuthModal();
-
-      const nickname = localProfile.nickname;
-      const normalizedAvatar = localProfile.avatar_url;
-
-      try {
-        await withTimeout(
-          upsertProfileCompat(client, { id: authedUser.id, email: authedUser.email || '', nickname }, normalizedAvatar, authedUser.id),
-          NETWORK_TIMEOUT_MS,
-          '同步用户资料超时'
-        );
-      } catch (_e) {
-        // Keep login successful even if profile sync is delayed.
+    if (authMode === 'register') {
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
+      }
+      if (password !== confirmPassword) {
+        throw new Error('两次输入的密码不一致');
       }
 
-      try {
-      await withTimeout(
-        client.auth.updateUser({
-          data: {
-            nickname,
-            avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
-            avatar_url: normalizedAvatar
+      /**
+       * If email confirmation is enabled in Supabase, signUp returns a user but
+       * no active session. In that case we keep the user in the modal and tell
+       * them to verify email before using password login.
+       */
+      const { data, error } = await withTimeout(
+        client.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              nickname: deriveNicknameFromEmail(email)
+            }
           }
-          }),
-          NETWORK_TIMEOUT_MS,
-          '更新用户元数据超时'
-        );
-      } catch (_e) {
-        // metadata update failure should not block login
+        }),
+        NETWORK_TIMEOUT_MS,
+        '注册超时'
+      );
+      if (error) throw error;
+
+      if (data?.session?.user) {
+        await finishPasswordAuth(client, data.session.user);
+        closeAuthModal();
+        return;
       }
 
-      currentUser = {
-        ...authedUser,
-        user_metadata: {
-          ...(authedUser.user_metadata || {}),
-          nickname,
-          avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
-          avatar_url: normalizedAvatar
-        }
-      };
-
-      try {
-        await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
-      } catch (_e) {
-        currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
-      }
-
-      renderAuthUI();
+      setAuthMode('login');
+      passwordInput.value = '';
+      confirmInput.value = '';
+      setAuthHint('注册成功。若已开启邮箱确认，请先去邮箱验证后再登录。');
+      updateAuthSubmitState();
       return;
     }
 
-    closeAuthModal();
+    const { data, error } = await withTimeout(
+      client.auth.signInWithPassword({ email, password }),
+      NETWORK_TIMEOUT_MS,
+      '登录超时'
+    );
+    if (error) throw error;
+
+    if (data?.user) {
+      await finishPasswordAuth(client, data.user);
+      closeAuthModal();
+    }
   } catch (err) {
     errorEl.textContent = normalizeAuthErrorMessage(err?.message || '操作失败');
   } finally {
-    updateOtpSubmitState();
-    submitBtn.textContent = '验证码登录';
+    const activeSubmitBtn = document.getElementById('auth-submit-btn');
+    if (activeSubmitBtn) {
+      activeSubmitBtn.textContent = authMode === 'register' ? '创建账号' : '登录';
+    }
+    updateAuthSubmitState();
   }
 }
 
