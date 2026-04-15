@@ -1,8 +1,8 @@
-/*  ==============================
-    Auth Module — 登录 / 注册 / 用户状态
+﻿/*  ==============================
+    Auth Module 鈥?鐧诲綍 / 娉ㄥ唽 / 鐢ㄦ埛鐘舵€?
     ==============================  */
 
-// 当前用户信息缓存（被首页与评论模块复用）
+// 褰撳墠鐢ㄦ埛淇℃伅缂撳瓨锛堣棣栭〉涓庤瘎璁烘ā鍧楀鐢級
 let currentUser = null;
 let currentProfile = null;
 
@@ -10,8 +10,8 @@ const AVATAR_EMOJIS = [
   '🙂', '😄', '😆', '😉', '😊', '🥰', '😎', '🤩', '🧐', '🤖',
   '🦊', '🐼', '🐯', '🐨', '🦁', '🦉', '🦄', '🐬', '🐳', '🦋',
   '🐶', '🐱', '🌙', '⭐', '✨', '🔥', '🌈', '🍀', '🌸', '🌻',
-  '🍃', '💫',
-  '🎭', '🎨', '🎵', '📚', '🧠', '💡', '🕊️', '☀️', '🌊', '🏔️'
+  '🍃', '💫', '🎭', '🎨', '🎵', '📚', '🧠', '💡', '🕊️', '☀️',
+  '🌊', '🏔️'
 ];
 
 let profileAvatarDraft = {
@@ -24,6 +24,9 @@ const PROFILE_AVATAR_CANDIDATE_FIELDS = ['avatar_url', 'avatar', 'avatar_emoji']
 let resolvedProfileAvatarField = null;
 let profileAvatarFieldResolved = false;
 let authMode = 'login';
+let pendingRegisterEmail = '';
+let otpCooldownTimer = null;
+let otpCooldownSeconds = 0;
 const NETWORK_TIMEOUT_MS = 12000;
 const MIN_PASSWORD_LENGTH = 6;
 
@@ -96,7 +99,7 @@ function avatarToBadgeHtml(value, seed, className) {
   if (isEmojiAvatarValue(normalized)) {
     return `<span class="${className} auth-avatar-emoji">${getEmojiFromAvatarValue(normalized, seed)}</span>`;
   }
-  return `<img class="${className}" src="${escapeAttr(normalized)}" alt="头像">`;
+  return `<img class="${className}" src="${escapeAttr(normalized)}" alt="澶村儚">`;
 }
 
 window.AvatarKit = {
@@ -117,25 +120,25 @@ function normalizeAuthErrorMessage(msg) {
     return '认证模块初始化失败，请刷新页面后重试';
   }
   if (msg.includes('over_email_send_rate_limit') || msg.includes('email rate limit exceeded') || msg.includes('Too Many Requests')) {
-    return '当前注册邮件发送过于频繁，请稍后再试（或在 Supabase 调高邮件发送额度）';
+    return '当前注册邮件发送过于频繁，请稍后再试';
   }
   if (msg.includes('upstream request timeout') || msg.includes('Gateway Timeout') || msg.includes('504')) {
-    return '注册邮件发送超时：请检查 Supabase 自定义 SMTP 连通性与账号配置';
+    return '邮件发送超时，请稍后再试';
   }
   if (msg.includes('email_address_invalid') || msg.includes('Unable to validate email address')) {
     return '邮箱地址格式不正确，请更换常用邮箱重试';
   }
   if (msg.includes('Password should be at least')) return `密码至少需要 ${MIN_PASSWORD_LENGTH} 位`;
-  if (lowerMsg.includes('weak password')) return `密码强度不足，请至少使用 ${MIN_PASSWORD_LENGTH} 位并混合字母数字`;
+  if (lowerMsg.includes('weak password')) return `密码强度不足，请至少使用 ${MIN_PASSWORD_LENGTH} 位`;
   if (msg.includes('Invalid login')) return '邮箱或密码错误';
-  if (msg.includes('Email not confirmed')) return '邮箱未验证，请先去邮箱完成验证';
+  if (msg.includes('Email not confirmed')) return '邮箱未验证，请先完成邮箱验证';
   if (msg.includes('Signups not allowed')) return '当前站点暂未开放注册，请联系管理员';
-  if (msg.includes('Invalid API key')) return '站点认证配置异常（Supabase Key 无效）';
+  if (msg.includes('Invalid API key')) return '站点认证配置异常';
   if (lowerMsg.includes('user already registered') || lowerMsg.includes('already registered')) return '该邮箱已注册，请直接登录';
-  if (lowerMsg.includes('invalid') && lowerMsg.includes('token')) return '验证码无效，请检查后重新输入';
+  if (lowerMsg.includes('invalid') && lowerMsg.includes('token')) return '验证码无效，请重新输入';
   if (lowerMsg.includes('expired') && lowerMsg.includes('token')) return '验证码已过期，请重新获取';
   if (lowerMsg.includes('otp_expired')) return '验证码已过期，请重新获取';
-  if (lowerMsg.includes('otp_disabled')) return '当前未开启邮箱验证码登录，请检查 Supabase 配置';
+  if (lowerMsg.includes('otp_disabled')) return '当前未开启邮箱验证码登录';
   if (msg.includes('already registered')) return '该邮箱已注册，请直接登录';
   if (msg.includes('valid email')) return '请输入有效邮箱';
   return msg;
@@ -284,7 +287,7 @@ async function syncProfileAfterAuth(client, user) {
   renderAuthUI();
 }
 
-/* ── 初始化：检查登录状态 ── */
+/* 鈹€鈹€ 鍒濆鍖栵細妫€鏌ョ櫥褰曠姸鎬?鈹€鈹€ */
 async function initAuth() {
   const client = getAuthClient();
   if (!client?.auth) {
@@ -318,7 +321,7 @@ async function initAuth() {
   });
 }
 
-/* ── 加载用户 Profile ── */
+/* 鈹€鈹€ 鍔犺浇鐢ㄦ埛 Profile 鈹€鈹€ */
 async function loadProfile() {
   const client = getAuthClient();
   if (!client || !currentUser) return;
@@ -385,7 +388,7 @@ async function loadProfile() {
   };
 }
 
-/* ── 渲染顶部登录状态 ── */
+/* 鈹€鈹€ 娓叉煋椤堕儴鐧诲綍鐘舵€?鈹€鈹€ */
 function renderAuthUI() {
   const container = document.getElementById('auth-status');
   if (!container) return;
@@ -394,13 +397,9 @@ function renderAuthUI() {
     const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '用户';
     const avatarHtml = avatarToBadgeHtml(currentProfile?.avatar_url, currentUser.id, 'auth-avatar');
     container.innerHTML = `
-      <div class="auth-user" onclick="toggleAuthMenu()">
+      <div class="auth-user" onclick="openEditProfile()">
         ${avatarHtml}
         <span class="auth-name">${displayName}</span>
-      </div>
-      <div class="auth-menu" id="auth-menu">
-        <button onclick="openEditProfile()">编辑资料</button>
-        <button onclick="handleLogout()">退出登录</button>
       </div>
     `;
   } else {
@@ -416,23 +415,11 @@ function renderAuthUI() {
   }
 }
 
-function toggleAuthMenu() {
-  const menu = document.getElementById('auth-menu');
-  if (menu) menu.classList.toggle('show');
-}
-
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('auth-menu');
-  if (menu && !e.target.closest('.auth-user')) {
-    menu.classList.remove('show');
-  }
-});
-
-/* ── 登录弹窗 ── */
 function openAuthModal() {
   const existing = document.getElementById('auth-modal');
   if (existing) existing.remove();
   authMode = 'login';
+  pendingRegisterEmail = '';
 
   const modal = document.createElement('div');
   modal.id = 'auth-modal';
@@ -445,8 +432,7 @@ function openAuthModal() {
         <button type="button" class="auth-mode-tab active" id="auth-tab-login" onclick="setAuthMode('login')">登录</button>
         <button type="button" class="auth-mode-tab" id="auth-tab-register" onclick="setAuthMode('register')">注册</button>
       </div>
-      <h3 class="auth-modal-title" id="auth-modal-title">邮箱登录</h3>
-      <p class="auth-modal-sub auth-modal-sub-main" id="auth-modal-sub">登录后可获得更多权限。</p>
+      <p class="auth-modal-sub auth-modal-sub-main">登录后可获得更多权限</p>
 
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
@@ -459,12 +445,14 @@ function openAuthModal() {
           <input type="password" id="auth-password" placeholder="请输入密码" required autocomplete="current-password" minlength="6">
         </div>
 
-        <div class="auth-field auth-field-row is-hidden" id="auth-confirm-row">
-          <label>确认密码</label>
-          <input type="password" id="auth-confirm-password" placeholder="再次输入密码" autocomplete="new-password" minlength="6">
+        <div class="auth-otp-row is-hidden" id="auth-otp-row">
+          <div class="auth-field auth-otp-code-field">
+            <label>验证码</label>
+            <input type="text" id="auth-code" placeholder="输入验证码" autocomplete="one-time-code" inputmode="numeric">
+          </div>
+          <button type="button" class="auth-otp-send-btn" id="auth-send-btn" onclick="sendRegisterOtpCode()">发送验证码</button>
         </div>
 
-        <p class="auth-hint" id="auth-hint">使用邮箱和密码直接登录。</p>
         <p class="auth-error" id="auth-error"></p>
         <button type="submit" class="auth-submit-btn" id="auth-submit-btn">登录</button>
       </form>
@@ -475,10 +463,10 @@ function openAuthModal() {
 
   const emailInput = document.getElementById('auth-email');
   const passwordInput = document.getElementById('auth-password');
-  const confirmInput = document.getElementById('auth-confirm-password');
+  const codeInput = document.getElementById('auth-code');
   if (emailInput) emailInput.addEventListener('input', updateAuthSubmitState);
   if (passwordInput) passwordInput.addEventListener('input', updateAuthSubmitState);
-  if (confirmInput) confirmInput.addEventListener('input', updateAuthSubmitState);
+  if (codeInput) codeInput.addEventListener('input', updateAuthSubmitState);
   setAuthMode('login');
 }
 
@@ -488,6 +476,12 @@ function closeAuthModal() {
     modal.classList.remove('show');
     setTimeout(() => modal.remove(), 300);
   }
+  pendingRegisterEmail = '';
+  if (otpCooldownTimer) {
+    clearInterval(otpCooldownTimer);
+    otpCooldownTimer = null;
+  }
+  otpCooldownSeconds = 0;
 }
 
 function setAuthMode(mode) {
@@ -498,26 +492,22 @@ function setAuthMode(mode) {
 function updateAuthModalUI() {
   const loginTab = document.getElementById('auth-tab-login');
   const registerTab = document.getElementById('auth-tab-register');
-  const titleEl = document.getElementById('auth-modal-title');
-  const subEl = document.getElementById('auth-modal-sub');
-  const hintEl = document.getElementById('auth-hint');
-  const confirmRow = document.getElementById('auth-confirm-row');
+  const otpRow = document.getElementById('auth-otp-row');
   const passwordInput = document.getElementById('auth-password');
-  const confirmInput = document.getElementById('auth-confirm-password');
+  const codeInput = document.getElementById('auth-code');
   const submitBtn = document.getElementById('auth-submit-btn');
-  if (!loginTab || !registerTab || !titleEl || !subEl || !hintEl || !confirmRow || !passwordInput || !confirmInput || !submitBtn) return;
+  const errorEl = document.getElementById('auth-error');
+  if (!loginTab || !registerTab || !otpRow || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
 
   const registerMode = authMode === 'register';
   loginTab.classList.toggle('active', !registerMode);
   registerTab.classList.toggle('active', registerMode);
-  titleEl.textContent = registerMode ? '邮箱注册' : '邮箱登录';
-  subEl.textContent = registerMode ? '注册后可直接使用邮箱和密码登录。' : '登录后可获得更多权限。';
-  hintEl.textContent = registerMode ? '如开启邮箱确认，注册后需先完成验证。' : '使用邮箱和密码直接登录。';
-  confirmRow.classList.toggle('is-hidden', !registerMode);
-  passwordInput.placeholder = registerMode ? '至少 6 位密码' : '请输入密码';
+  otpRow.classList.toggle('is-hidden', !registerMode);
   passwordInput.autocomplete = registerMode ? 'new-password' : 'current-password';
-  confirmInput.required = registerMode;
-  submitBtn.textContent = registerMode ? '创建账号' : '登录';
+  codeInput.required = registerMode;
+  submitBtn.textContent = registerMode ? '验证注册' : '登录';
+  errorEl.textContent = '';
+  setOtpButtonLabel();
   updateAuthSubmitState();
 }
 
@@ -525,24 +515,102 @@ function updateAuthSubmitState() {
   const submitBtn = document.getElementById('auth-submit-btn');
   const emailInput = document.getElementById('auth-email');
   const passwordInput = document.getElementById('auth-password');
-  const confirmInput = document.getElementById('auth-confirm-password');
-  if (!submitBtn || !emailInput || !passwordInput || !confirmInput) return;
+  const codeInput = document.getElementById('auth-code');
+  if (!submitBtn || !emailInput || !passwordInput || !codeInput) return;
 
   const email = emailInput.value.trim();
   const password = passwordInput.value.trim();
-  const confirm = confirmInput.value.trim();
+  const code = codeInput.value.trim();
   const registerMode = authMode === 'register';
-  submitBtn.disabled = !email || !password || (registerMode && !confirm);
+  submitBtn.disabled = !email || !password || (registerMode && !code);
 }
 
-function setAuthHint(message) {
-  const hintEl = document.getElementById('auth-hint');
-  if (hintEl) hintEl.textContent = message;
+function setOtpButtonLabel() {
+  const sendBtn = document.getElementById('auth-send-btn');
+  if (!sendBtn) return;
+  sendBtn.textContent = otpCooldownSeconds > 0 ? `${otpCooldownSeconds}s` : '发送验证码';
+  sendBtn.disabled = otpCooldownSeconds > 0;
+}
+
+function startOtpCooldown(seconds) {
+  otpCooldownSeconds = seconds;
+  setOtpButtonLabel();
+  if (otpCooldownTimer) clearInterval(otpCooldownTimer);
+  otpCooldownTimer = setInterval(() => {
+    otpCooldownSeconds -= 1;
+    if (otpCooldownSeconds <= 0) {
+      otpCooldownSeconds = 0;
+      clearInterval(otpCooldownTimer);
+      otpCooldownTimer = null;
+    }
+    setOtpButtonLabel();
+  }, 1000);
 }
 
 function deriveNicknameFromEmail(email) {
   const prefix = String(email || '').split('@')[0].trim();
   return prefix || '匿名觉者';
+}
+
+async function ensureRegisterAccountAvailable(client, email) {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .limit(1);
+
+  if (!error && (data || []).length > 0) {
+    throw new Error('该邮箱已注册，请直接登录');
+  }
+}
+
+async function sendRegisterOtpCode() {
+  const client = getAuthClient();
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const sendBtn = document.getElementById('auth-send-btn');
+  const errorEl = document.getElementById('auth-error');
+  if (!client?.auth || !emailInput || !passwordInput || !sendBtn || !errorEl) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+  if (!email) {
+    errorEl.textContent = '请输入邮箱';
+    return;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    errorEl.textContent = `密码至少需要 ${MIN_PASSWORD_LENGTH} 位`;
+    return;
+  }
+
+  errorEl.textContent = '';
+  sendBtn.disabled = true;
+  sendBtn.textContent = '发送中...';
+
+  try {
+    await ensureRegisterAccountAvailable(client, email);
+    const { error } = await withTimeout(
+      client.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          data: {
+            nickname: deriveNicknameFromEmail(email)
+          }
+        }
+      }),
+      NETWORK_TIMEOUT_MS,
+      '发送验证码超时'
+    );
+    if (error) throw error;
+
+    pendingRegisterEmail = email;
+    startOtpCooldown(60);
+  } catch (err) {
+    errorEl.textContent = normalizeAuthErrorMessage(err?.message || '发送验证码失败');
+    otpCooldownSeconds = 0;
+    setOtpButtonLabel();
+  }
 }
 
 async function finishPasswordAuth(client, authedUser) {
@@ -611,21 +679,21 @@ async function handleAuthSubmit(e) {
   const client = getAuthClient();
   const emailInput = document.getElementById('auth-email');
   const passwordInput = document.getElementById('auth-password');
-  const confirmInput = document.getElementById('auth-confirm-password');
+  const codeInput = document.getElementById('auth-code');
   const errorEl = document.getElementById('auth-error');
   const submitBtn = document.getElementById('auth-submit-btn');
-  if (!emailInput || !passwordInput || !confirmInput || !submitBtn || !errorEl) return;
+  if (!emailInput || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
 
   const email = emailInput.value.trim().toLowerCase();
   const password = passwordInput.value.trim();
-  const confirmPassword = confirmInput.value.trim();
+  const code = codeInput.value.trim();
   if (!email || !password) {
     errorEl.textContent = '请输入邮箱和密码';
     return;
   }
 
   submitBtn.disabled = true;
-  submitBtn.textContent = authMode === 'register' ? '注册中...' : '登录中...';
+  submitBtn.textContent = authMode === 'register' ? '验证中...' : '登录中...';
   errorEl.textContent = '';
 
   try {
@@ -637,40 +705,62 @@ async function handleAuthSubmit(e) {
       if (password.length < MIN_PASSWORD_LENGTH) {
         throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
       }
-      if (password !== confirmPassword) {
-        throw new Error('两次输入的密码不一致');
+      if (!code) {
+        throw new Error('请输入验证码');
       }
 
-      /**
-       * If email confirmation is enabled in Supabase, signUp returns a user but
-       * no active session. In that case we keep the user in the modal and tell
-       * them to verify email before using password login.
-       */
+      const verifyEmail = pendingRegisterEmail || email;
       const { data, error } = await withTimeout(
-        client.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              nickname: deriveNicknameFromEmail(email)
-            }
-          }
+        client.auth.verifyOtp({
+          email: verifyEmail,
+          token: code,
+          type: 'email'
         }),
         NETWORK_TIMEOUT_MS,
-        '注册超时'
+        '验证码验证超时'
       );
       if (error) throw error;
 
-      if (data?.session?.user) {
-        await finishPasswordAuth(client, data.session.user);
-        closeAuthModal();
-        return;
+      const authedUser = data?.user || data?.session?.user;
+      if (!authedUser?.id) {
+        throw new Error('验证码验证失败，请重新获取');
       }
 
+      await withTimeout(
+        client.auth.updateUser({
+          password,
+          data: {
+            nickname: deriveNicknameFromEmail(email)
+          }
+        }),
+        NETWORK_TIMEOUT_MS,
+        '设置密码超时'
+      );
+
+      await withTimeout(
+        upsertProfileCompat(
+          client,
+          {
+            id: authedUser.id,
+            email: authedUser.email || email,
+            nickname: deriveNicknameFromEmail(email)
+          },
+          buildLocalProfile(authedUser).avatar_url,
+          authedUser.id
+        ),
+        NETWORK_TIMEOUT_MS,
+        '同步用户资料超时'
+      );
+
+      await client.auth.signOut();
+      currentUser = null;
+      currentProfile = null;
       setAuthMode('login');
-      passwordInput.value = '';
-      confirmInput.value = '';
-      setAuthHint('注册成功。若已开启邮箱确认，请先去邮箱验证后再登录。');
+      emailInput.value = email;
+      passwordInput.value = password;
+      codeInput.value = '';
+      pendingRegisterEmail = '';
+      renderAuthUI();
       updateAuthSubmitState();
       return;
     }
@@ -691,13 +781,12 @@ async function handleAuthSubmit(e) {
   } finally {
     const activeSubmitBtn = document.getElementById('auth-submit-btn');
     if (activeSubmitBtn) {
-      activeSubmitBtn.textContent = authMode === 'register' ? '创建账号' : '登录';
+      activeSubmitBtn.textContent = authMode === 'register' ? '验证注册' : '登录';
     }
     updateAuthSubmitState();
   }
 }
 
-/* ── 退出 ── */
 async function handleLogout() {
   const client = getAuthClient();
   if (!client?.auth) return;
@@ -707,12 +796,8 @@ async function handleLogout() {
   renderAuthUI();
 }
 
-/* ── 编辑资料（昵称 / 表情头像 / 上传头像） ── */
 function openEditProfile() {
   if (!currentUser) return;
-
-  const menu = document.getElementById('auth-menu');
-  if (menu) menu.classList.remove('show');
 
   const existing = document.getElementById('profile-modal');
   if (existing) existing.remove();
@@ -729,6 +814,13 @@ function openEditProfile() {
   modal.innerHTML = `
     <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
     <div class="auth-modal-content profile-edit-content">
+      <button class="auth-modal-logout" onclick="confirmLogout()" title="退出登录" aria-label="退出登录">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
       <button class="auth-modal-close" onclick="closeProfileModal()">✕</button>
       <h3 class="profile-edit-title">编辑资料</h3>
 
@@ -757,6 +849,13 @@ function openEditProfile() {
   document.body.appendChild(modal);
   requestAnimationFrame(() => modal.classList.add('show'));
   refreshProfileAvatarPreview();
+}
+
+async function confirmLogout() {
+  if (confirm('是否退出登录？')) {
+    await handleLogout();
+    closeProfileModal();
+  }
 }
 
 function closeProfileModal() {
@@ -898,3 +997,4 @@ async function saveProfileChanges() {
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', initAuth);
+

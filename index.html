@@ -201,16 +201,16 @@
     .home-profile-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.48rem 1.08rem;
+      gap: 0.48rem;
+      padding: 0.38rem 0.92rem;
       background: rgba(201, 168, 76, 0.05);
       color: var(--gold-light);
       border: 1px solid rgba(201, 168, 76, 0.3);
       border-radius: 40px;
       font-family: 'Noto Serif SC', serif;
-      font-size: 0.74rem;
+      font-size: 0.68rem;
       font-weight: 500;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.08em;
       cursor: pointer;
       transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
       backdrop-filter: blur(12px);
@@ -259,6 +259,24 @@
     .home-profile-btn:hover svg {
       transform: scale(1.1);
       filter: drop-shadow(0 0 8px rgba(201, 168, 76, 0.6));
+    }
+
+    .home-profile-btn .auth-avatar {
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(201, 168, 76, 0.28);
+      background: rgba(201, 168, 76, 0.08);
+    }
+
+    .home-profile-btn .auth-avatar-emoji {
+      font-size: 12px;
+    }
+
+    .home-profile-btn span {
+      max-width: 78px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .home-profile-btn:active {
@@ -1173,13 +1191,12 @@
       const greetingEl = document.getElementById('home-greeting');
       if (statusEl) {
         if (currentUser) {
+          const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '觉者';
+          const avatarHtml = avatarToBadgeHtml(currentProfile?.avatar_url, currentUser.id, 'auth-avatar');
           statusEl.innerHTML = `
             <button class="home-profile-btn" onclick="openEditProfile()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-              我的资料
+              ${avatarHtml}
+              <span>${displayName}</span>
             </button>
           `;
         } else {
