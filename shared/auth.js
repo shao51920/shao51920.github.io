@@ -374,7 +374,7 @@ function openAuthModal() {
     <div class="auth-modal-content">
       <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
       <h3 class="auth-modal-title">邮箱验证码登录</h3>
-      <p class="auth-modal-sub auth-modal-sub-main">输入邮箱获取验证码，验证后自动登录</p>
+      <p class="auth-modal-sub auth-modal-sub-main"></p>
 
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
@@ -485,7 +485,7 @@ async function sendEmailOtpCode() {
     if (error) throw error;
 
     pendingOtpEmail = email;
-    setAuthHint(`验证码已发送到 ${email}，请输入验证码完成登录`);
+    setAuthHint(`验证码已发送，请输入`);
     startOtpCooldown(60);
     if (codeInput) codeInput.focus();
     updateOtpSubmitState();
@@ -617,7 +617,7 @@ function openEditProfile() {
       </div>
 
       <label class="profile-upload-btn">
-        上传头像图片（可覆盖表情头像）
+        上传头像图片
         <input type="file" id="profile-avatar-file" accept="image/*" onchange="handleProfileAvatarFile(this)">
       </label>
 
