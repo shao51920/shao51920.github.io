@@ -42,7 +42,7 @@ function initComments() {
   container.innerHTML = `
     <div class="comments-wrapper">
       <div class="comments-header">
-        <h3>留下一盏你的心灯</h3>
+        <h3>留下你的一盏心灯</h3>
         <span class="comments-count" id="comments-count">加载中...</span>
       </div>
 

@@ -1,4 +1,4 @@
-﻿/* ==============================
+/* ==============================
    Design Tokens
    ============================== */
 :root {
@@ -239,7 +239,7 @@ body {
 /* Intro Cards */
 .intro-cards {
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-md); /* Reduced gap */
   justify-content: center;
   margin-bottom: var(--space-2xl);
   flex-wrap: wrap;
@@ -852,7 +852,7 @@ body {
 .result-content {
   max-width: 700px;
   margin: 0 auto;
-  padding: var(--space-2xl) var(--space-lg);
+  padding: var(--space-2xl) 0; /* Horizontal padding removed */
   text-align: center;
 }
 
@@ -990,7 +990,7 @@ body {
 }
 
 .result-badge {
-  font-size: 2.5rem;
+  font-size: 1.8rem; /* Reduced font-size */
   margin-bottom: 0;
   animation: badgeBounce 1s var(--transition-bounce) forwards;
   display: inline-block;
@@ -1019,7 +1019,7 @@ body {
   -webkit-background-clip: unset;
   background-clip: unset;
   margin: 0;
-  line-height: 1.3;
+  line-height: 1; /* Reduced line-height */
   display: inline-block;
   letter-spacing: -0.01em;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -1036,7 +1036,7 @@ body {
 }
 
 .result-title-group {
-  display: inline-flex;
+  display: flex; /* Changed from inline-flex to flex for better width control */
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
@@ -1044,13 +1044,13 @@ body {
   background: linear-gradient(135deg, #a78bfa, #6366f1, #8b5cf6, #a855f7, #ec4899);
   background-size: 200% 200%;
   animation: gradientShift 4s ease infinite;
-  padding: 8px 14px;
+  padding: 2px 0; /* Vertical padding set to 2px, horizontal padding removed */
   border-radius: var(--radius-lg);
   box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(167, 139, 250, 0.15);
   position: relative;
   overflow: hidden;
-  width: fit-content;
-  max-width: min(86vw, 360px);
+  width: 100%; /* Extend to full width */
+  max-width: none; /* Remove max-width constraint */
 }
 
 .result-title-group::before {
@@ -1366,7 +1366,7 @@ body:not(.landing-active):not(.result-active) .nav-home-btn {
 @media (max-width: 640px) {
   .intro-cards {
     flex-direction: row;
-    gap: var(--space-xs);
+    gap: var(--space-md);
     margin-bottom: var(--space-xl);
   }
 

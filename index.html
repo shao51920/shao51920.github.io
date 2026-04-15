@@ -719,9 +719,6 @@
     </svg>
   </div>
 
-  <!-- 登录状态 -->
-  <div id="auth-status"></div>
-
   <!-- 主内容 -->
   <main id="main">
     <!-- 神圣符文环 -->
@@ -1087,9 +1084,9 @@
 
       if (currentUser) {
         const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '觉者';
-        greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${displayName}</span>。 愿你照亮真实的内在。`;
+        greetingEl.innerHTML = `你好，<span style="color:var(--gold-light)">${displayName}</span>。 `;
       } else {
-        greetingEl.innerHTML = `你好，欢迎登录 <span class="home-auth-login-trigger" onclick="openAuthModal()">点此登录/注册 →</span>`;
+        greetingEl.innerHTML = `你好，欢迎<span class="home-auth-login-trigger" onclick="openAuthModal()">登录</span>`;
       }
     };
   </script>

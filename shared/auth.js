@@ -246,7 +246,7 @@ function openAuthModal() {
     <div class="auth-modal-backdrop" onclick="closeAuthModal()"></div>
     <div class="auth-modal-content">
       <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
-      <p class="auth-modal-sub auth-modal-sub-main">登录后可获得更多权限。</p>
+      <p class="auth-modal-sub auth-modal-sub-main">登录后可获得更多权限</p>
 
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="switchAuthTab('login', this)">登录</button>
