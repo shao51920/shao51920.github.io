@@ -6,6 +6,8 @@
 
 let commentsLoaded = false;
 let selectedImageFile = null;
+let commentsFeatureAvailable = true;
+let commentsProfileMap = {};
 
 function getCommentsClient() {
   if (typeof supabase !== 'undefined' && supabase) return supabase;
@@ -32,6 +34,28 @@ function getProfileAvatarValue(profile) {
   if (typeof profile.avatar === 'string' && profile.avatar) return profile.avatar;
   if (typeof profile.avatar_emoji === 'string' && profile.avatar_emoji) return `emoji:${profile.avatar_emoji}`;
   return '';
+}
+
+function isCommentsTableMissing(error) {
+  const msg = String(error?.message || '');
+  return msg.includes("Could not find the table 'public.comments'") || msg.includes('PGRST205');
+}
+
+async function loadCommentProfiles(client, comments) {
+  const userIds = [...new Set((comments || []).map(c => c.user_id).filter(Boolean))];
+  if (userIds.length === 0) {
+    commentsProfileMap = {};
+    return;
+  }
+
+  const { data, error } = await client
+    .from('profiles')
+    .select('*')
+    .in('id', userIds);
+
+  if (error) throw error;
+
+  commentsProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
 }
 
 function renderAvatarIntoElement(elementId, avatarValue, seed, className) {
@@ -108,6 +132,13 @@ function updateCommentInputState() {
   const inputBox = document.getElementById('comment-input-box');
   if (!loginHint || !inputBox) return;
 
+  if (!commentsFeatureAvailable) {
+    loginHint.style.display = 'flex';
+    loginHint.innerHTML = '<p>评论功能尚未初始化，请先补齐 Supabase 的 comments 表</p>';
+    inputBox.style.display = 'none';
+    return;
+  }
+
   if (currentUser) {
     loginHint.style.display = 'none';
     inputBox.style.display = 'block';
@@ -142,12 +173,14 @@ async function loadComments(pageType) {
   try {
     const { data: comments, error } = await client
       .from('comments')
-      .select('*, profiles(*)')
+      .select('*')
       .eq('page_type', pageType)
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) throw error;
+    commentsFeatureAvailable = true;
+    await loadCommentProfiles(client, comments || []);
     if (countEl) countEl.textContent = `${comments.length} 条`;
 
     if (!comments || comments.length === 0) {
@@ -159,13 +192,20 @@ async function loadComments(pageType) {
     commentsLoaded = true;
   } catch (err) {
     console.error('加载评论失败:', err);
+    if (isCommentsTableMissing(err)) {
+      commentsFeatureAvailable = false;
+      if (countEl) countEl.textContent = '未启用';
+      listEl.innerHTML = '<p class="comments-empty">评论表未创建，评论功能暂不可用</p>';
+      updateCommentInputState();
+      return;
+    }
     listEl.innerHTML = '<p class="comments-empty">评论加载失败，请刷新页面</p>';
   }
 }
 
 /* ── 渲染单条评论 ── */
 function renderComment(c) {
-  const profile = c.profiles || {};
+  const profile = commentsProfileMap[c.user_id] || {};
   const name = profile.nickname || '匿名';
   const time = new Date(c.created_at).toLocaleString('zh-CN', {
     month: 'numeric',
@@ -200,6 +240,10 @@ function renderComment(c) {
 async function submitComment(pageType) {
   const client = getCommentsClient();
   if (!client) return;
+  if (!commentsFeatureAvailable) {
+    alert('评论表尚未创建，当前无法发布评论');
+    return;
+  }
 
   if (!currentUser) {
     openAuthModal();
@@ -258,6 +302,7 @@ async function submitComment(pageType) {
 async function deleteComment(commentId, pageType) {
   const client = getCommentsClient();
   if (!client) return;
+  if (!commentsFeatureAvailable) return;
 
   if (!confirm('确定删除这条评论？')) return;
   try {

@@ -245,10 +245,12 @@ function withTimeout(promise, ms, message) {
 
 function buildLocalProfile(user) {
   const nickname = user?.user_metadata?.nickname || user?.email || '匿名觉者';
+  const metadataAvatar = user?.user_metadata?.avatar_url || (user?.user_metadata?.avatar_emoji ? `emoji:${user.user_metadata.avatar_emoji}` : '');
   const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
   return {
+    email: user?.email || '',
     nickname,
-    avatar_url: normalizeAvatarValue(`emoji:${avatarEmoji}`, user?.id || nickname)
+    avatar_url: normalizeAvatarValue(metadataAvatar || `emoji:${avatarEmoji}`, user?.id || nickname)
   };
 }
 
@@ -262,7 +264,7 @@ async function syncProfileAfterAuth(client, user) {
 
   try {
     await withTimeout(
-      upsertProfileCompat(client, { id: user.id, nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
+      upsertProfileCompat(client, { id: user.id, email: user.email || '', nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
       NETWORK_TIMEOUT_MS,
       '同步用户资料超时'
     );
@@ -330,7 +332,10 @@ async function loadProfile() {
       resolvedProfileAvatarField = inferredField;
       profileAvatarFieldResolved = true;
     }
-    const normalizedAvatar = getAvatarFromProfileRecord(data, currentUser.id);
+    const metadataAvatar = buildLocalProfile(currentUser).avatar_url;
+    const normalizedAvatar = inferredField
+      ? getAvatarFromProfileRecord(data, currentUser.id)
+      : metadataAvatar;
     currentProfile = { ...data, avatar_url: normalizedAvatar };
     const originalAvatar = getAvatarFromProfileRecord({
       avatar_url: data.avatar_url,
@@ -352,6 +357,7 @@ async function loadProfile() {
   try {
     await upsertProfileCompat(client, {
       id: currentUser.id,
+      email: currentUser.email || '',
       nickname: currentUser.user_metadata?.nickname || '匿名觉者'
     }, normalizedAvatar, currentUser.id);
   } catch (_e) {
@@ -619,7 +625,7 @@ async function handleAuthSubmit(e) {
 
       try {
         await withTimeout(
-          upsertProfileCompat(client, { id: authedUser.id, nickname }, normalizedAvatar, authedUser.id),
+          upsertProfileCompat(client, { id: authedUser.id, email: authedUser.email || '', nickname }, normalizedAvatar, authedUser.id),
           NETWORK_TIMEOUT_MS,
           '同步用户资料超时'
         );
@@ -628,13 +634,13 @@ async function handleAuthSubmit(e) {
       }
 
       try {
-        await withTimeout(
-          client.auth.updateUser({
-            data: {
-              nickname,
-              avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
-              avatar_url: normalizedAvatar
-            }
+      await withTimeout(
+        client.auth.updateUser({
+          data: {
+            nickname,
+            avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
+            avatar_url: normalizedAvatar
+          }
           }),
           NETWORK_TIMEOUT_MS,
           '更新用户元数据超时'
@@ -642,6 +648,16 @@ async function handleAuthSubmit(e) {
       } catch (_e) {
         // metadata update failure should not block login
       }
+
+      currentUser = {
+        ...authedUser,
+        user_metadata: {
+          ...(authedUser.user_metadata || {}),
+          nickname,
+          avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
+          avatar_url: normalizedAvatar
+        }
+      };
 
       try {
         await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
@@ -839,6 +855,16 @@ async function saveProfileChanges() {
     } catch (_e) {
       // metadata sync failure does not block local profile update
     }
+
+    currentUser = {
+      ...(currentUser || {}),
+      user_metadata: {
+        ...((currentUser && currentUser.user_metadata) || {}),
+        nickname,
+        avatar_url: avatarValue,
+        avatar_emoji: getEmojiFromAvatarValue(avatarValue, currentUser.id)
+      }
+    };
 
     currentProfile = { ...(currentProfile || {}), nickname, avatar_url: avatarValue };
     renderAuthUI();

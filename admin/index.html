@@ -313,6 +313,7 @@
     var adminUser = null;
     var commentCache = [];
     var userCache = [];
+    var commentProfileMap = {};
 
     function hashSeed(input) {
       const text = String(input || '');
@@ -355,12 +356,34 @@
       );
     }
 
+    async function loadProfilesByIds(ids) {
+      const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        commentProfileMap = {};
+        return;
+      }
+
+      const { data, error } = await db
+        .from('profiles')
+        .select('*')
+        .in('id', uniqueIds);
+
+      if (error) throw error;
+      commentProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
+    }
+
+    function isMissingCommentsTable(error) {
+      const msg = String(error?.message || '');
+      return msg.includes("Could not find the table 'public.comments'") || msg.includes('PGRST205');
+    }
+
     async function getProfileAdminState(user) {
       if (!user?.id) return false;
 
       // 兜底：确保 profile 存在，避免历史账号因缺 profile 导致“看起来无法登录”
       await db.from('profiles').upsert({
         id: user.id,
+        email: user.email || '',
         nickname: user.user_metadata?.nickname || '管理员'
       });
 
@@ -436,11 +459,26 @@
 
     async function loadStats() {
       const { count: userCount } = await db.from('profiles').select('*', { count: 'exact', head: true });
-      const { count: commentCount } = await db.from('comments').select('*', { count: 'exact', head: true });
-      const { count: soullabCount } = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
-      const { count: objCount } = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest');
-      const { count: hiddenCount } = await db.from('comments').select('*', { count: 'exact', head: true }).eq('is_hidden', true);
       const { count: adminCount } = await db.from('profiles').select('*', { count: 'exact', head: true }).eq('is_admin', true);
+
+      let commentCount = 0;
+      let soullabCount = 0;
+      let objCount = 0;
+      let hiddenCount = 0;
+      let commentsUnavailable = false;
+
+      const commentRes = await db.from('comments').select('*', { count: 'exact', head: true });
+      if (commentRes.error) {
+        commentsUnavailable = isMissingCommentsTable(commentRes.error);
+      } else {
+        commentCount = commentRes.count || 0;
+        const soullabRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
+        const objRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest');
+        const hiddenRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('is_hidden', true);
+        soullabCount = soullabRes.count || 0;
+        objCount = objRes.count || 0;
+        hiddenCount = hiddenRes.count || 0;
+      }
 
       document.getElementById('stats').innerHTML = `
         <div class="stat-card"><div class="stat-num">${userCount || 0}</div><div class="stat-label">注册用户</div></div>
@@ -458,18 +496,33 @@
           管理权限来源：<strong>profiles.is_admin / auth metadata 双通道</strong> ｜ 
           数据刷新时间：<strong>${new Date().toLocaleString('zh-CN')}</strong>
         `;
+        if (commentsUnavailable) {
+          statusEl.innerHTML += '<br>评论状态：<strong>comments 表缺失，评论与统计功能当前不可用</strong>';
+        }
+        if ((userCount || 0) === 0) {
+          statusEl.innerHTML += '<br>用户状态：<strong>profiles 表当前为空，已登录用户需要成功完成资料同步后才会出现在后台</strong>';
+        }
       }
     }
 
     /* ── 评论管理 ── */
     async function loadComments() {
-      const { data: comments } = await db
+      const { data: comments, error } = await db
         .from('comments')
-        .select('*, profiles(*)')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(300);
 
+      if (error) {
+        const container = document.getElementById('tab-comments');
+        if (container && isMissingCommentsTable(error)) {
+          container.innerHTML = '<p class="empty">comments 表缺失，评论管理暂不可用</p>';
+          return;
+        }
+      }
+
       commentCache = comments || [];
+      await loadProfilesByIds(commentCache.map(c => c.user_id));
       renderComments();
     }
 
@@ -480,7 +533,8 @@
       const statusFilter = document.getElementById('comment-status-filter')?.value || 'all';
 
       let rows = (commentCache || []).filter(c => {
-        const nickname = (c.profiles?.nickname || '').toLowerCase();
+        const profile = commentProfileMap[c.user_id] || {};
+        const nickname = (profile.nickname || '').toLowerCase();
         const content = (c.content || '').toLowerCase();
         const matchSearch = !search || nickname.includes(search) || content.includes(search);
         const matchPage = pageFilter === 'all' || c.page_type === pageFilter;
@@ -502,8 +556,8 @@
           <tr id="row-${c.id}" style="${c.is_hidden ? 'opacity:0.4' : ''}">
             <td>
               <span class="cell-user">
-                ${renderAdminAvatar(getAdminAvatarValue(c.profiles), c.user_id)}
-                <span>${escapeH(c.profiles?.nickname || '未知')}</span>
+                ${renderAdminAvatar(getAdminAvatarValue(commentProfileMap[c.user_id]), c.user_id)}
+                <span>${escapeH(commentProfileMap[c.user_id]?.nickname || '未知')}</span>
               </span>
             </td>
             <td><span class="badge">${c.page_type === 'soullab' ? '灵性测试' : '客体化'}</span></td>

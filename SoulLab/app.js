@@ -25,7 +25,7 @@ async function loadParticipantCount() {
     console.error('加载参与人数失败:', err);
     const countEl = document.getElementById('soullab-participant-count');
     if (countEl) {
-      countEl.textContent = '已有 -- 人参与测试';
+      countEl.textContent = '参与人数统计暂不可用';
     }
   }
 }

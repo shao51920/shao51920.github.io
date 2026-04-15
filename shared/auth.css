@@ -14,14 +14,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 18px;
+  padding: 6px 14px;
   background: rgba(10, 10, 30, 0.55);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 24px;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px 5px 5px;
+  padding: 4px 11px 4px 4px;
   background: rgba(10, 10, 30, 0.55);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -53,8 +53,8 @@
 }
 
 .auth-avatar {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: rgba(167, 139, 250, 0.15);
   object-fit: cover;
@@ -64,15 +64,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 15px;
   border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .auth-name {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 500;
-  max-width: 100px;
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -81,7 +81,7 @@
 /* ── 下拉菜单 ── */
 .auth-menu {
   position: absolute;
-  top: 48px;
+  top: 42px;
   right: 0;
   background: rgba(15, 15, 35, 0.95);
   backdrop-filter: blur(16px);
