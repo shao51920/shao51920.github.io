@@ -1,10 +1,12 @@
-let currentQuestion = 0;
+﻿let currentQuestion = 0;
 let answers = {};
 let totalScore = 0;
 
 /* ==============================
    Load Participant Count
    ============================== */
+const RESULT_VIEW_TABLE = 'result_views';
+
 function getAppSupabaseClient() {
   if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
   if (window.db && typeof window.db.from === 'function') return window.db;
@@ -12,38 +14,60 @@ function getAppSupabaseClient() {
   return null;
 }
 
+function renderParticipantCount(element, count) {
+  if (!element) return;
+  const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
+  element.innerHTML = `已有 <span class="participant-number">${safeCount}</span> 人参与测试`;
+}
+
 async function loadParticipantCount() {
+  const client = getAppSupabaseClient();
+  const countEl = document.getElementById('objtest-participant-count');
+  if (!client || !countEl) return;
+
+  try {
+    let count = 0;
+    const resultViewRes = await client
+      .from(RESULT_VIEW_TABLE)
+      .select('*', { count: 'exact', head: true })
+      .eq('page_type', 'objtest');
+
+    if (resultViewRes.error) {
+      const commentRes = await client
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('page_type', 'objtest');
+      if (commentRes.error) throw commentRes.error;
+      count = commentRes.count || 0;
+    } else {
+      count = resultViewRes.count || 0;
+    }
+
+    renderParticipantCount(countEl, count);
+  } catch (err) {
+    console.error('加载参与人数失败:', err);
+    countEl.textContent = '参与人数统计暂不可用';
+  }
+}
+
+async function trackResultView() {
   const client = getAppSupabaseClient();
   if (!client) return;
 
   try {
-    const { count, error } = await client
-      .from('comments')
-      .select('*', { count: 'exact', head: true })
-      .eq('page_type', 'objtest');
-    
-    if (error) throw error;
-    
-    const countEl = document.getElementById('objtest-participant-count');
-    if (countEl) {
-      countEl.textContent = `已有 ${count || 0} 人参与测试`;
-    }
+    await client.from(RESULT_VIEW_TABLE).insert({ page_type: 'objtest' });
   } catch (err) {
-    console.error('加载参与人数失败:', err);
-    const countEl = document.getElementById('objtest-participant-count');
-    if (countEl) {
-      countEl.textContent = '参与人数统计暂不可用';
-    }
+    console.error('记录结果浏览失败:', err);
   }
+
+  loadParticipantCount();
 }
 
-// 页面加载时获取参与人数
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', loadParticipantCount);
 } else {
   loadParticipantCount();
 }
-
 function showPage(pageId) {
   document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
   const targetPage = document.getElementById(pageId);
@@ -209,6 +233,7 @@ function showResult() {
   document.getElementById('result-advice').innerHTML = tier.advice;
   
   showPage('result');
+  trackResultView();
 
   // 初始化评论区
   setTimeout(() => {
@@ -298,3 +323,4 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+

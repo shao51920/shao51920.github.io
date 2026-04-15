@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -304,353 +304,386 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // Supabase 客户端初始化（使用 db 避免变量提升问题）
-    window.db = window.supabase.createClient(
-      'https://xcwdgwvtgbqcsslbgtpy.supabase.co',
-      'sb_publishable_g5USxyN0qcqv9peaZE_irQ_B3QIPV_H'
+  window.db = window.supabase.createClient(
+    'https://xcwdgwvtgbqcsslbgtpy.supabase.co',
+    'sb_publishable_g5USxyN0qcqv9peaZE_irQ_B3QIPV_H'
+  );
+
+  const db = window.db;
+  let adminUser = null;
+  let commentCache = [];
+  let userCache = [];
+  let resultViewCount = 0;
+  let commentProfileMap = {};
+
+  function hashSeed(input) {
+    const text = String(input || '');
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      hash = (hash << 5) - hash + text.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  }
+
+  function pickEmoji(seed) {
+    const emojis = ['🙂', '😄', '😎', '🦊', '🐼', '🐶', '🐱', '🌙', '✨', '🍀', '🎭', '🧠'];
+    return emojis[hashSeed(seed) % emojis.length];
+  }
+
+  function renderAdminAvatar(avatarValue, seed) {
+    if (typeof avatarValue === 'string' && avatarValue.startsWith('emoji:')) {
+      return `<span class="avatar-dot">${escapeH(avatarValue.slice(6) || pickEmoji(seed))}</span>`;
+    }
+    if (typeof avatarValue === 'string' && /^(https?:\/\/|data:image\/)/.test(avatarValue) && !avatarValue.includes('api.dicebear.com')) {
+      return `<img class="avatar-dot" src="${escapeAttr(avatarValue)}" alt="">`;
+    }
+    return `<span class="avatar-dot">${pickEmoji(seed)}</span>`;
+  }
+
+  function getAdminAvatarValue(profile) {
+    if (!profile || typeof profile !== 'object') return '';
+    if (typeof profile.avatar_url === 'string' && profile.avatar_url) return profile.avatar_url;
+    if (typeof profile.avatar === 'string' && profile.avatar) return profile.avatar;
+    if (typeof profile.avatar_emoji === 'string' && profile.avatar_emoji) return `emoji:${profile.avatar_emoji}`;
+    return '';
+  }
+
+  function hasAdminMetadata(user) {
+    return Boolean(
+      user?.app_metadata?.role === 'admin' ||
+      user?.app_metadata?.is_admin === true ||
+      user?.user_metadata?.is_admin === true
     );
+  }
 
-    var adminUser = null;
-    var commentCache = [];
-    var userCache = [];
-    var commentProfileMap = {};
+  function isMissingCommentsTable(error) {
+    const msg = String(error?.message || '');
+    return msg.includes("Could not find the table 'public.comments'") || msg.includes('PGRST205');
+  }
 
-    function hashSeed(input) {
-      const text = String(input || '');
-      let hash = 0;
-      for (let i = 0; i < text.length; i++) {
-        hash = (hash << 5) - hash + text.charCodeAt(i);
-        hash |= 0;
+  async function loadProfilesByIds(ids) {
+    const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      commentProfileMap = {};
+      return;
+    }
+
+    const { data, error } = await db
+      .from('profiles')
+      .select('*')
+      .in('id', uniqueIds);
+
+    if (error) throw error;
+    commentProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
+  }
+
+  async function getProfileAdminState(user) {
+    if (!user?.id) return false;
+
+    await db.from('profiles').upsert({
+      id: user.id,
+      email: user.email || '',
+      nickname: user.user_metadata?.nickname || '管理员'
+    });
+
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    return profile?.is_admin === true;
+  }
+
+  async function adminLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.textContent = '';
+
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) {
+      if (error.message?.includes('Email not confirmed')) {
+        errorEl.textContent = '登录失败：邮箱未验证，请先完成邮箱验证。';
+      } else if (error.message?.includes('Invalid login')) {
+        errorEl.textContent = '登录失败：邮箱或密码错误。';
+      } else {
+        errorEl.textContent = `登录失败：${error.message}`;
       }
-      return Math.abs(hash);
+      return;
     }
 
-    function pickEmoji(seed) {
-      const emojis = ['🙂', '😎', '🤖', '🦊', '🐼', '🦄', '🍀', '🌙', '🔥', '✨', '🎭', '🧠'];
-      return emojis[hashSeed(seed) % emojis.length];
+    const isAdmin = await getProfileAdminState(data.user) || hasAdminMetadata(data.user);
+    if (!isAdmin) {
+      errorEl.textContent = '当前账号不是管理员。';
+      await db.auth.signOut();
+      return;
     }
 
-    function renderAdminAvatar(avatarValue, seed) {
-      if (typeof avatarValue === 'string' && avatarValue.startsWith('emoji:')) {
-        return `<span class="avatar-dot">${escapeH(avatarValue.slice(6) || pickEmoji(seed))}</span>`;
-      }
-      if (typeof avatarValue === 'string' && /^(https?:\/\/|data:image\/)/.test(avatarValue) && !avatarValue.includes('api.dicebear.com')) {
-        return `<img class="avatar-dot" src="${escapeAttr(avatarValue)}" alt="">`;
-      }
-      return `<span class="avatar-dot">${pickEmoji(seed)}</span>`;
-    }
+    adminUser = data.user;
+    document.getElementById('admin-login').style.display = 'none';
+    document.getElementById('admin-app').style.display = 'block';
+    loadDashboard();
+  }
 
-    function getAdminAvatarValue(profile) {
-      if (!profile || typeof profile !== 'object') return '';
-      if (typeof profile.avatar_url === 'string' && profile.avatar_url) return profile.avatar_url;
-      if (typeof profile.avatar === 'string' && profile.avatar) return profile.avatar;
-      if (typeof profile.avatar_emoji === 'string' && profile.avatar_emoji) return `emoji:${profile.avatar_emoji}`;
-      return '';
-    }
+  async function adminLogout() {
+    await db.auth.signOut();
+    location.reload();
+  }
 
-    function hasAdminMetadata(user) {
-      return Boolean(
-        user?.app_metadata?.role === 'admin' ||
-        user?.app_metadata?.is_admin === true ||
-        user?.user_metadata?.is_admin === true
-      );
-    }
-
-    async function loadProfilesByIds(ids) {
-      const uniqueIds = [...new Set((ids || []).filter(Boolean))];
-      if (uniqueIds.length === 0) {
-        commentProfileMap = {};
-        return;
-      }
-
-      const { data, error } = await db
-        .from('profiles')
-        .select('*')
-        .in('id', uniqueIds);
-
-      if (error) throw error;
-      commentProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
-    }
-
-    function isMissingCommentsTable(error) {
-      const msg = String(error?.message || '');
-      return msg.includes("Could not find the table 'public.comments'") || msg.includes('PGRST205');
-    }
-
-    async function getProfileAdminState(user) {
-      if (!user?.id) return false;
-
-      // 兜底：确保 profile 存在，避免历史账号因缺 profile 导致“看起来无法登录”
-      await db.from('profiles').upsert({
-        id: user.id,
-        email: user.email || '',
-        nickname: user.user_metadata?.nickname || '管理员'
-      });
-
-      const { data: profile } = await db
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      return profile?.is_admin === true;
-    }
-
-    /* ── 登录 ── */
-    async function adminLogin() {
-      const email = document.getElementById('login-email').value;
-      const password = document.getElementById('login-password').value;
-      const errorEl = document.getElementById('login-error');
-      errorEl.textContent = '';
-
-      const { data, error } = await db.auth.signInWithPassword({ email, password });
-      if (error) {
-        if (error.message?.includes('Email not confirmed')) {
-          errorEl.textContent = '登录失败：邮箱未验证，请先到邮箱完成验证。';
-        } else if (error.message?.includes('Invalid API key')) {
-          errorEl.textContent = '登录失败：站点认证配置异常（Supabase Key 无效）。';
-        } else if (error.message?.includes('Invalid login')) {
-          errorEl.textContent = '登录失败：邮箱或密码错误。';
-        } else {
-          errorEl.textContent = '登录失败：' + error.message;
-        }
-        return;
-      }
-
-      // 检查是否为管理员：优先 profiles.is_admin，其次 auth app/user metadata
-      const isAdmin = await getProfileAdminState(data.user) || hasAdminMetadata(data.user);
-      if (!isAdmin) {
-        errorEl.textContent = '你不是管理员';
-        await db.auth.signOut();
-        return;
-      }
-
-      adminUser = data.user;
+  async function checkSession() {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) return;
+    const isAdmin = await getProfileAdminState(session.user) || hasAdminMetadata(session.user);
+    if (isAdmin) {
+      adminUser = session.user;
       document.getElementById('admin-login').style.display = 'none';
       document.getElementById('admin-app').style.display = 'block';
       loadDashboard();
     }
+  }
+  checkSession();
 
-    async function adminLogout() {
-      await db.auth.signOut();
-      location.reload();
+  async function loadDashboard() {
+    await Promise.all([loadStats(), loadComments(), loadUsers()]);
+  }
+
+  async function loadStats() {
+    const [{ count: userCount }, { count: adminCount }] = await Promise.all([
+      db.from('profiles').select('*', { count: 'exact', head: true }),
+      db.from('profiles').select('*', { count: 'exact', head: true }).eq('is_admin', true)
+    ]);
+
+    let commentCount = 0;
+    let soullabCount = 0;
+    let objCount = 0;
+    let hiddenCount = 0;
+    let commentsUnavailable = false;
+
+    const commentRes = await db.from('comments').select('*', { count: 'exact', head: true });
+    if (commentRes.error) {
+      commentsUnavailable = isMissingCommentsTable(commentRes.error);
+    } else {
+      commentCount = commentRes.count || 0;
+      const [soullabRes, objRes, hiddenRes] = await Promise.all([
+        db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab'),
+        db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest'),
+        db.from('comments').select('*', { count: 'exact', head: true }).eq('is_hidden', true)
+      ]);
+      soullabCount = soullabRes.count || 0;
+      objCount = objRes.count || 0;
+      hiddenCount = hiddenRes.count || 0;
     }
 
-    /* ── 检查已有 session ── */
-    async function checkSession() {
-      const { data: { session } } = await db.auth.getSession();
-      if (!session) return;
-      const isAdmin = await getProfileAdminState(session.user) || hasAdminMetadata(session.user);
-      if (isAdmin) {
-        adminUser = session.user;
-        document.getElementById('admin-login').style.display = 'none';
-        document.getElementById('admin-app').style.display = 'block';
-        loadDashboard();
-      }
-    }
-    checkSession();
+    const resultViewRes = await db.from('result_views').select('*', { count: 'exact', head: true });
+    resultViewCount = resultViewRes.error ? 0 : (resultViewRes.count || 0);
 
-    /* ── Dashboard ── */
-    async function loadDashboard() {
-      await loadStats();
-      await loadComments();
-      await loadUsers();
-    }
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card"><div class="stat-num">${userCount || 0}</div><div class="stat-label">注册用户</div></div>
+      <div class="stat-card"><div class="stat-num">${commentCount || 0}</div><div class="stat-label">总评论数</div></div>
+      <div class="stat-card"><div class="stat-num">${soullabCount || 0}</div><div class="stat-label">人格测试评论</div></div>
+      <div class="stat-card"><div class="stat-num">${objCount || 0}</div><div class="stat-label">客体化评论</div></div>
+      <div class="stat-card"><div class="stat-num">${hiddenCount || 0}</div><div class="stat-label">已隐藏评论</div></div>
+      <div class="stat-card"><div class="stat-num">${adminCount || 0}</div><div class="stat-label">管理员</div></div>
+      <div class="stat-card"><div class="stat-num">${resultViewCount || 0}</div><div class="stat-label">结果浏览量</div></div>
+    `;
 
-    async function loadStats() {
-      const { count: userCount } = await db.from('profiles').select('*', { count: 'exact', head: true });
-      const { count: adminCount } = await db.from('profiles').select('*', { count: 'exact', head: true }).eq('is_admin', true);
-
-      let commentCount = 0;
-      let soullabCount = 0;
-      let objCount = 0;
-      let hiddenCount = 0;
-      let commentsUnavailable = false;
-
-      const commentRes = await db.from('comments').select('*', { count: 'exact', head: true });
-      if (commentRes.error) {
-        commentsUnavailable = isMissingCommentsTable(commentRes.error);
-      } else {
-        commentCount = commentRes.count || 0;
-        const soullabRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'soullab');
-        const objRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('page_type', 'objtest');
-        const hiddenRes = await db.from('comments').select('*', { count: 'exact', head: true }).eq('is_hidden', true);
-        soullabCount = soullabRes.count || 0;
-        objCount = objRes.count || 0;
-        hiddenCount = hiddenRes.count || 0;
-      }
-
-      document.getElementById('stats').innerHTML = `
-        <div class="stat-card"><div class="stat-num">${userCount || 0}</div><div class="stat-label">注册用户</div></div>
-        <div class="stat-card"><div class="stat-num">${commentCount || 0}</div><div class="stat-label">总评论数</div></div>
-        <div class="stat-card"><div class="stat-num">${soullabCount || 0}</div><div class="stat-label">灵性测试评论</div></div>
-        <div class="stat-card"><div class="stat-num">${objCount || 0}</div><div class="stat-label">客体化评论</div></div>
-        <div class="stat-card"><div class="stat-num">${hiddenCount || 0}</div><div class="stat-label">已隐藏评论</div></div>
-        <div class="stat-card"><div class="stat-num">${adminCount || 0}</div><div class="stat-label">管理员</div></div>
+    const statusEl = document.getElementById('status-panel');
+    if (statusEl) {
+      statusEl.innerHTML = `
+        当前登录：<strong>${escapeH(adminUser?.email || '未知')}</strong> ·
+        管理权限来源：<strong>profiles.is_admin / auth metadata</strong> ·
+        数据刷新时间：<strong>${new Date().toLocaleString('zh-CN')}</strong>
       `;
-
-      const statusEl = document.getElementById('status-panel');
-      if (statusEl) {
-        statusEl.innerHTML = `
-          当前登录：<strong>${escapeH(adminUser?.email || '未知')}</strong> ｜ 
-          管理权限来源：<strong>profiles.is_admin / auth metadata 双通道</strong> ｜ 
-          数据刷新时间：<strong>${new Date().toLocaleString('zh-CN')}</strong>
-        `;
-        if (commentsUnavailable) {
-          statusEl.innerHTML += '<br>评论状态：<strong>comments 表缺失，评论与统计功能当前不可用</strong>';
-        }
-        if ((userCount || 0) === 0) {
-          statusEl.innerHTML += '<br>用户状态：<strong>profiles 表当前为空，已登录用户需要成功完成资料同步后才会出现在后台</strong>';
-        }
+      if (commentsUnavailable) {
+        statusEl.innerHTML += '<br>评论状态：<strong>comments 表缺失，评论相关功能当前不可用。</strong>';
+      }
+      if (resultViewRes.error) {
+        statusEl.innerHTML += '<br>参与统计状态：<strong>result_views 表缺失，测试页参与人数会回退到评论数。</strong>';
       }
     }
+  }
 
-    /* ── 评论管理 ── */
-    async function loadComments() {
-      const { data: comments, error } = await db
-        .from('comments')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(300);
+  async function loadComments() {
+    const { data: comments, error } = await db
+      .from('comments')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300);
 
-      if (error) {
-        const container = document.getElementById('tab-comments');
-        if (container && isMissingCommentsTable(error)) {
-          container.innerHTML = '<p class="empty">comments 表缺失，评论管理暂不可用</p>';
-          return;
-        }
-      }
-
-      commentCache = comments || [];
-      await loadProfilesByIds(commentCache.map(c => c.user_id));
-      renderComments();
-    }
-
-    function renderComments() {
-      const container = document.getElementById('tab-comments');
-      const search = (document.getElementById('comment-search')?.value || '').trim().toLowerCase();
-      const pageFilter = document.getElementById('comment-page-filter')?.value || 'all';
-      const statusFilter = document.getElementById('comment-status-filter')?.value || 'all';
-
-      let rows = (commentCache || []).filter(c => {
-        const profile = commentProfileMap[c.user_id] || {};
-        const nickname = (profile.nickname || '').toLowerCase();
-        const content = (c.content || '').toLowerCase();
-        const matchSearch = !search || nickname.includes(search) || content.includes(search);
-        const matchPage = pageFilter === 'all' || c.page_type === pageFilter;
-        const matchStatus =
-          statusFilter === 'all' ||
-          (statusFilter === 'hidden' && c.is_hidden) ||
-          (statusFilter === 'visible' && !c.is_hidden);
-        return matchSearch && matchPage && matchStatus;
-      });
-
-      if (rows.length === 0) {
-        container.innerHTML = '<p class="empty">没有匹配的评论</p>';
+    const container = document.getElementById('tab-comments');
+    if (error) {
+      if (container && isMissingCommentsTable(error)) {
+        container.innerHTML = '<p class="empty">comments 表缺失，评论管理暂不可用。</p>';
         return;
       }
+      container.innerHTML = `<p class="empty">加载评论失败：${escapeH(error.message || '未知错误')}</p>`;
+      return;
+    }
 
-      container.innerHTML = `<div class="table-wrap"><table>
+    commentCache = comments || [];
+    await loadProfilesByIds(commentCache.map(comment => comment.user_id));
+    renderComments();
+  }
+
+  function renderComments() {
+    const container = document.getElementById('tab-comments');
+    const search = (document.getElementById('comment-search')?.value || '').trim().toLowerCase();
+    const pageFilter = document.getElementById('comment-page-filter')?.value || 'all';
+    const statusFilter = document.getElementById('comment-status-filter')?.value || 'all';
+
+    const rows = (commentCache || []).filter(comment => {
+      const profile = commentProfileMap[comment.user_id] || {};
+      const nickname = (profile.nickname || '').toLowerCase();
+      const content = (comment.content || '').toLowerCase();
+      const matchSearch = !search || nickname.includes(search) || content.includes(search);
+      const matchPage = pageFilter === 'all' || comment.page_type === pageFilter;
+      const matchStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'hidden' && comment.is_hidden) ||
+        (statusFilter === 'visible' && !comment.is_hidden);
+      return matchSearch && matchPage && matchStatus;
+    });
+
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty">没有匹配的评论。</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="table-wrap"><table>
         <thead><tr><th>用户</th><th>来源</th><th>内容</th><th>图片</th><th>时间</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>${rows.map(c => `
-          <tr id="row-${c.id}" style="${c.is_hidden ? 'opacity:0.4' : ''}">
-            <td>
-              <span class="cell-user">
-                ${renderAdminAvatar(getAdminAvatarValue(commentProfileMap[c.user_id]), c.user_id)}
-                <span>${escapeH(commentProfileMap[c.user_id]?.nickname || '未知')}</span>
-              </span>
-            </td>
-            <td><span class="badge">${c.page_type === 'soullab' ? '灵性测试' : '客体化'}</span></td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeH(c.content || '')}</td>
-            <td>${c.image_url ? `<img class="comment-img-thumb" src="${escapeAttr(c.image_url)}" onclick="window.open(this.src)">` : '-'}</td>
-            <td style="white-space:nowrap">${new Date(c.created_at).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
-            <td>${c.is_hidden ? '<span class="badge">🚫 已隐藏</span>' : '<span class="badge">✅ 正常</span>'}</td>
-            <td>
-              <button class="btn-sm btn-warn" onclick="toggleHide('${c.id}', ${!c.is_hidden})">${c.is_hidden ? '恢复' : '隐藏'}</button>
-              <button class="btn-sm btn-danger" onclick="deleteC('${c.id}')">删除</button>
-            </td>
-          </tr>
-        `).join('')}</tbody>
-      </table></div>`;
+        <tbody>
+          ${rows.map(comment => {
+            const profile = commentProfileMap[comment.user_id] || {};
+            return `
+              <tr id="row-${comment.id}" style="${comment.is_hidden ? 'opacity:0.45' : ''}">
+                <td>
+                  <span class="cell-user">
+                    ${renderAdminAvatar(getAdminAvatarValue(profile), comment.user_id)}
+                    <span>${escapeH(profile.nickname || '未知用户')}</span>
+                  </span>
+                </td>
+                <td><span class="badge">${comment.page_type === 'soullab' ? '人格测试' : '客体化测试'}</span></td>
+                <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeH(comment.content || '')}</td>
+                <td>${comment.image_url ? `<img class="comment-img-thumb" src="${escapeAttr(comment.image_url)}" onclick="window.open(this.src)">` : '-'}</td>
+                <td style="white-space:nowrap">${new Date(comment.created_at).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+                <td>${comment.is_hidden ? '<span class="badge">已隐藏</span>' : '<span class="badge">正常</span>'}</td>
+                <td>
+                  <button class="btn-sm btn-warn" onclick="toggleHide('${comment.id}', ${!comment.is_hidden})">${comment.is_hidden ? '恢复' : '隐藏'}</button>
+                  <button class="btn-sm btn-danger" onclick="deleteC('${comment.id}')">删除</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table></div>
+    `;
+  }
+
+  async function toggleHide(id, hide) {
+    await db.from('comments').update({ is_hidden: hide }).eq('id', id);
+    await Promise.all([loadComments(), loadStats()]);
+  }
+
+  async function deleteC(id) {
+    if (!confirm('确定永久删除这条评论？')) return;
+    await db.from('comments').delete().eq('id', id);
+    await Promise.all([loadComments(), loadStats()]);
+  }
+
+  async function loadUsers() {
+    const { data, error } = await db
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (error) {
+      document.getElementById('tab-users').innerHTML = `<p class="empty">加载用户失败：${escapeH(error.message || '未知错误')}</p>`;
+      return;
     }
 
-    async function toggleHide(id, hide) {
-      await db.from('comments').update({ is_hidden: hide }).eq('id', id);
-      loadComments();
-      loadStats();
+    userCache = data || [];
+    renderUsers();
+  }
+
+  function renderUsers() {
+    const container = document.getElementById('tab-users');
+    const search = (document.getElementById('user-search')?.value || '').trim().toLowerCase();
+    const rows = (userCache || []).filter(user => {
+      const line = `${user.nickname || ''} ${user.email || ''} ${user.is_admin ? '管理员' : '普通用户'} ${(user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '')}`.toLowerCase();
+      return !search || line.includes(search);
+    });
+
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty">没有匹配的用户。</p>';
+      return;
     }
 
-    async function deleteC(id) {
-      if (!confirm('确定永久删除？')) return;
-      await db.from('comments').delete().eq('id', id);
-      loadComments();
-      loadStats();
+    container.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>头像</th><th>昵称</th><th>邮箱</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody>
+          ${rows.map(user => `
+            <tr>
+              <td>${renderAdminAvatar(getAdminAvatarValue(user), user.id)}</td>
+              <td>${escapeH(user.nickname || '')}</td>
+              <td>${escapeH(user.email || '-')}</td>
+              <td>${user.is_admin ? '<span class="badge">管理员</span>' : '<span class="badge">普通用户</span>'}</td>
+              <td>${user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '-'}</td>
+              <td>
+                <button class="btn-sm" onclick="toggleAdmin('${user.id}', ${!user.is_admin})">${user.is_admin ? '取消管理员' : '设为管理员'}</button>
+                <button class="btn-sm btn-danger" onclick="deleteUserAccount('${user.id}', '${escapeAttr(user.nickname || user.email || '该用户')}')">删除用户</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table></div>
+    `;
+  }
+
+  async function toggleAdmin(id, makeAdmin) {
+    await db.from('profiles').update({ is_admin: makeAdmin }).eq('id', id);
+    await Promise.all([loadUsers(), loadStats()]);
+  }
+
+  async function deleteUserAccount(id, displayName) {
+    if (!confirm(`确定删除用户「${displayName}」？这会连同认证账号一起删除。`)) return;
+
+    const { error } = await db.rpc('admin_delete_user', { target_user_id: id });
+    if (error) {
+      alert(`删除失败：${error.message || '请先执行管理员 SQL 脚本'}`);
+      return;
     }
 
-    /* ── 用户管理 ── */
-    async function loadUsers() {
-      const { data: users } = await db
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(300);
+    await Promise.all([loadUsers(), loadComments(), loadStats()]);
+  }
 
-      userCache = users || [];
-      renderUsers();
-    }
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.tabs button').forEach(button => button.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-comments').style.display = tab === 'comments' ? 'block' : 'none';
+    document.getElementById('tab-users').style.display = tab === 'users' ? 'block' : 'none';
+    document.getElementById('comments-toolbar').style.display = tab === 'comments' ? 'grid' : 'none';
+    document.getElementById('users-toolbar').style.display = tab === 'users' ? 'grid' : 'none';
+  }
 
-    function renderUsers() {
-      const container = document.getElementById('tab-users');
-      const search = (document.getElementById('user-search')?.value || '').trim().toLowerCase();
-      const rows = (userCache || []).filter(u => {
-        const line = `${u.nickname || ''} ${u.is_admin ? '管理员' : '普通用户'} ${new Date(u.created_at).toLocaleDateString('zh-CN')}`.toLowerCase();
-        return !search || line.includes(search);
-      });
+  function escapeH(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
 
-      if (rows.length === 0) {
-        container.innerHTML = '<p class="empty">没有匹配的用户</p>';
-        return;
-      }
-
-      container.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>头像</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
-        <tbody>${rows.map(u => `
-          <tr>
-            <td>${renderAdminAvatar(getAdminAvatarValue(u), u.id)}</td>
-            <td>${escapeH(u.nickname || '')}</td>
-            <td>${u.is_admin ? '<span class="badge">👑 管理员</span>' : '<span class="badge">普通用户</span>'}</td>
-            <td>${new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
-            <td>
-              <button class="btn-sm" onclick="toggleAdmin('${u.id}', ${!u.is_admin})">${u.is_admin ? '取消管理员' : '设为管理员'}</button>
-            </td>
-          </tr>
-        `).join('')}</tbody>
-      </table></div>`;
-    }
-
-    async function toggleAdmin(id, makeAdmin) {
-      await db.from('profiles').update({ is_admin: makeAdmin }).eq('id', id);
-      loadUsers();
-    }
-
-    /* ── Tab 切换 ── */
-    function switchTab(tab, btn) {
-      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-comments').style.display = tab === 'comments' ? 'block' : 'none';
-      document.getElementById('tab-users').style.display = tab === 'users' ? 'block' : 'none';
-      document.getElementById('comments-toolbar').style.display = tab === 'comments' ? 'grid' : 'none';
-      document.getElementById('users-toolbar').style.display = tab === 'users' ? 'grid' : 'none';
-    }
-
-    function escapeH(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-    function escapeAttr(v) {
-      return String(v || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-  </script>
+  function escapeAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+</script>
 </body>
 </html>
+

@@ -1,4 +1,4 @@
-# 觉醒诗社（Awakening Poetry）
+﻿# 觉醒诗社（Awakening Poetry）
 
 > “认识生命真相，活出觉醒人生”
 
@@ -24,4 +24,3 @@
 ---
 © 2026 公众号【觉醒诗社】 · [qingye520.xyz](https://qingye520.xyz)
 作者：青野
-"![正在上传 image.png…]("\")"

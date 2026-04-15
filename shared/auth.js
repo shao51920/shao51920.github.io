@@ -25,6 +25,7 @@ let resolvedProfileAvatarField = null;
 let profileAvatarFieldResolved = false;
 let authMode = 'login';
 let pendingRegisterEmail = '';
+let pendingRegisterNickname = '';
 let otpCooldownTimer = null;
 let otpCooldownSeconds = 0;
 const NETWORK_TIMEOUT_MS = 12000;
@@ -249,8 +250,47 @@ function withTimeout(promise, ms, message) {
   });
 }
 
+function buildFallbackNickname(seed) {
+  return `觉者${100 + (hashSeed(seed || Date.now()) % 900)}`;
+}
+
+async function generateDefaultNickname(client) {
+  let candidateNumber = 100;
+
+  try {
+    const { count, error } = await client
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (!error) {
+      candidateNumber = 100 + (count || 0);
+    }
+  } catch (_error) {
+    candidateNumber = 100 + (Date.now() % 900);
+  }
+
+  for (let offset = 0; offset < 8; offset++) {
+    const nickname = `觉者${candidateNumber + offset}`;
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('id')
+        .eq('nickname', nickname)
+        .limit(1);
+
+      if (error || !Array.isArray(data) || data.length === 0) {
+        return nickname;
+      }
+    } catch (_error) {
+      return nickname;
+    }
+  }
+
+  return buildFallbackNickname(Date.now());
+}
+
 function buildLocalProfile(user) {
-  const nickname = user?.user_metadata?.nickname || user?.email || '匿名觉者';
+  const nickname = user?.user_metadata?.nickname || currentProfile?.nickname || buildFallbackNickname(user?.id || user?.email);
   const metadataAvatar = user?.user_metadata?.avatar_url || (user?.user_metadata?.avatar_emoji ? `emoji:${user.user_metadata.avatar_emoji}` : '');
   const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
   return {
@@ -420,6 +460,7 @@ function openAuthModal() {
   if (existing) existing.remove();
   authMode = 'login';
   pendingRegisterEmail = '';
+  pendingRegisterNickname = '';
 
   const modal = document.createElement('div');
   modal.id = 'auth-modal';
@@ -432,7 +473,7 @@ function openAuthModal() {
         <button type="button" class="auth-mode-tab active" id="auth-tab-login" onclick="setAuthMode('login')">登录</button>
         <button type="button" class="auth-mode-tab" id="auth-tab-register" onclick="setAuthMode('register')">注册</button>
       </div>
-      <p class="auth-modal-sub auth-modal-sub-main">登录后可获得更多权限</p>
+      <p class="auth-modal-sub auth-modal-sub-main" id="auth-modal-sub">登录后可修改昵称</p>
 
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
@@ -477,6 +518,7 @@ function closeAuthModal() {
     setTimeout(() => modal.remove(), 300);
   }
   pendingRegisterEmail = '';
+  pendingRegisterNickname = '';
   if (otpCooldownTimer) {
     clearInterval(otpCooldownTimer);
     otpCooldownTimer = null;
@@ -492,16 +534,18 @@ function setAuthMode(mode) {
 function updateAuthModalUI() {
   const loginTab = document.getElementById('auth-tab-login');
   const registerTab = document.getElementById('auth-tab-register');
+  const subtitle = document.getElementById('auth-modal-sub');
   const otpRow = document.getElementById('auth-otp-row');
   const passwordInput = document.getElementById('auth-password');
   const codeInput = document.getElementById('auth-code');
   const submitBtn = document.getElementById('auth-submit-btn');
   const errorEl = document.getElementById('auth-error');
-  if (!loginTab || !registerTab || !otpRow || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
+  if (!loginTab || !registerTab || !subtitle || !otpRow || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
 
   const registerMode = authMode === 'register';
   loginTab.classList.toggle('active', !registerMode);
   registerTab.classList.toggle('active', registerMode);
+  subtitle.textContent = registerMode ? '登录后可获得更多权限' : '登录后可修改昵称';
   otpRow.classList.toggle('is-hidden', !registerMode);
   passwordInput.autocomplete = registerMode ? 'new-password' : 'current-password';
   codeInput.required = registerMode;
@@ -547,9 +591,28 @@ function startOtpCooldown(seconds) {
   }, 1000);
 }
 
-function deriveNicknameFromEmail(email) {
-  const prefix = String(email || '').split('@')[0].trim();
-  return prefix || '匿名觉者';
+function primeAuthenticatedUI(authedUser, overrideNickname) {
+  const localProfile = buildLocalProfile({
+    ...authedUser,
+    user_metadata: {
+      ...(authedUser?.user_metadata || {}),
+      ...(overrideNickname ? { nickname: overrideNickname } : {})
+    }
+  });
+  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
+
+  currentUser = {
+    ...authedUser,
+    user_metadata: {
+      ...(authedUser?.user_metadata || {}),
+      nickname: localProfile.nickname,
+      avatar_emoji: avatarEmoji,
+      avatar_url: localProfile.avatar_url
+    }
+  };
+  currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+  renderAuthUI();
+  return localProfile;
 }
 
 async function ensureRegisterAccountAvailable(client, email) {
@@ -589,13 +652,14 @@ async function sendRegisterOtpCode() {
 
   try {
     await ensureRegisterAccountAvailable(client, email);
+    pendingRegisterNickname = await generateDefaultNickname(client);
     const { error } = await withTimeout(
       client.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
           data: {
-            nickname: deriveNicknameFromEmail(email)
+            nickname: pendingRegisterNickname
           }
         }
       }),
@@ -613,15 +677,14 @@ async function sendRegisterOtpCode() {
   }
 }
 
-async function finishPasswordAuth(client, authedUser) {
+async function finishPasswordAuth(client, authedUser, overrideNickname) {
   if (!authedUser?.id) return;
 
-  const localProfile = buildLocalProfile(authedUser);
-  currentUser = authedUser;
-  currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+  const localProfile = primeAuthenticatedUI(authedUser, overrideNickname);
+  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
 
-  try {
-    await withTimeout(
+  await Promise.allSettled([
+    withTimeout(
       upsertProfileCompat(
         client,
         {
@@ -634,36 +697,19 @@ async function finishPasswordAuth(client, authedUser) {
       ),
       NETWORK_TIMEOUT_MS,
       '同步用户资料超时'
-    );
-  } catch (_error) {
-    // Keep the auth flow usable even if profile sync is temporarily blocked.
-  }
-
-  try {
-    await withTimeout(
+    ),
+    withTimeout(
       client.auth.updateUser({
         data: {
           nickname: localProfile.nickname,
-          avatar_emoji: getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id),
+          avatar_emoji: avatarEmoji,
           avatar_url: localProfile.avatar_url
         }
       }),
       NETWORK_TIMEOUT_MS,
       '更新用户元数据超时'
-    );
-  } catch (_error) {
-    // Metadata sync is a fallback, not a hard requirement for login success.
-  }
-
-  currentUser = {
-    ...authedUser,
-    user_metadata: {
-      ...(authedUser.user_metadata || {}),
-      nickname: localProfile.nickname,
-      avatar_emoji: getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id),
-      avatar_url: localProfile.avatar_url
-    }
-  };
+    )
+  ]);
 
   try {
     await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
@@ -702,6 +748,7 @@ async function handleAuthSubmit(e) {
     }
 
     if (authMode === 'register') {
+      const registerNickname = pendingRegisterNickname || await generateDefaultNickname(client);
       if (password.length < MIN_PASSWORD_LENGTH) {
         throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
       }
@@ -727,29 +774,40 @@ async function handleAuthSubmit(e) {
       }
 
       await withTimeout(
-        client.auth.updateUser({
-          password,
-          data: {
-            nickname: deriveNicknameFromEmail(email)
-          }
-        }),
+        Promise.allSettled([
+          withTimeout(
+            client.auth.updateUser({
+              password,
+              data: {
+                nickname: registerNickname
+              }
+            }),
+            NETWORK_TIMEOUT_MS,
+            '设置密码超时'
+          ),
+          withTimeout(
+            upsertProfileCompat(
+              client,
+              {
+                id: authedUser.id,
+                email: authedUser.email || email,
+                nickname: registerNickname
+              },
+              buildLocalProfile({
+                ...authedUser,
+                user_metadata: {
+                  ...(authedUser.user_metadata || {}),
+                  nickname: registerNickname
+                }
+              }).avatar_url,
+              authedUser.id
+            ),
+            NETWORK_TIMEOUT_MS,
+            '同步用户资料超时'
+          )
+        ]),
         NETWORK_TIMEOUT_MS,
-        '设置密码超时'
-      );
-
-      await withTimeout(
-        upsertProfileCompat(
-          client,
-          {
-            id: authedUser.id,
-            email: authedUser.email || email,
-            nickname: deriveNicknameFromEmail(email)
-          },
-          buildLocalProfile(authedUser).avatar_url,
-          authedUser.id
-        ),
-        NETWORK_TIMEOUT_MS,
-        '同步用户资料超时'
+        '设置注册资料超时'
       );
 
       await client.auth.signOut();
@@ -760,6 +818,7 @@ async function handleAuthSubmit(e) {
       passwordInput.value = password;
       codeInput.value = '';
       pendingRegisterEmail = '';
+      pendingRegisterNickname = '';
       renderAuthUI();
       updateAuthSubmitState();
       return;
@@ -773,8 +832,11 @@ async function handleAuthSubmit(e) {
     if (error) throw error;
 
     if (data?.user) {
-      await finishPasswordAuth(client, data.user);
+      primeAuthenticatedUI(data.user);
       closeAuthModal();
+      finishPasswordAuth(client, data.user).catch((syncError) => {
+        console.error('登录后资料同步失败:', syncError);
+      });
     }
   } catch (err) {
     errorEl.textContent = normalizeAuthErrorMessage(err?.message || '操作失败');
@@ -789,11 +851,17 @@ async function handleAuthSubmit(e) {
 
 async function handleLogout() {
   const client = getAuthClient();
-  if (!client?.auth) return;
-  await client.auth.signOut();
   currentUser = null;
   currentProfile = null;
   renderAuthUI();
+
+  if (!client?.auth) return;
+
+  try {
+    await withTimeout(client.auth.signOut(), 5000, '退出登录超时');
+  } catch (err) {
+    console.error('退出登录失败:', err);
+  }
 }
 
 function openEditProfile() {
@@ -853,8 +921,8 @@ function openEditProfile() {
 
 async function confirmLogout() {
   if (confirm('是否退出登录？')) {
-    await handleLogout();
     closeProfileModal();
+    await handleLogout();
   }
 }
 
@@ -928,7 +996,7 @@ async function saveProfileChanges() {
   const errorEl = document.getElementById('profile-edit-error');
   if (!nicknameInput || !saveBtn || !errorEl) return;
 
-  const nickname = nicknameInput.value.trim() || '匿名觉者';
+  const nickname = nicknameInput.value.trim() || currentProfile?.nickname || buildFallbackNickname(currentUser.id);
   saveBtn.disabled = true;
   saveBtn.textContent = '保存中...';
   errorEl.textContent = '';
@@ -952,27 +1020,7 @@ async function saveProfileChanges() {
       avatarValue = publicData.publicUrl;
     }
 
-    await withTimeout(
-      updateProfileCompat(client, currentUser.id, nickname, avatarValue, currentUser.id),
-      NETWORK_TIMEOUT_MS,
-      '保存资料超时'
-    );
-
-    try {
-      await withTimeout(
-        client.auth.updateUser({
-          data: {
-            nickname,
-            avatar_url: avatarValue,
-            avatar_emoji: getEmojiFromAvatarValue(avatarValue, currentUser.id)
-          }
-        }),
-        NETWORK_TIMEOUT_MS,
-        '更新用户元数据超时'
-      );
-    } catch (_e) {
-      // metadata sync failure does not block local profile update
-    }
+    const avatarEmoji = getEmojiFromAvatarValue(avatarValue, currentUser.id);
 
     currentUser = {
       ...(currentUser || {}),
@@ -980,13 +1028,37 @@ async function saveProfileChanges() {
         ...((currentUser && currentUser.user_metadata) || {}),
         nickname,
         avatar_url: avatarValue,
-        avatar_emoji: getEmojiFromAvatarValue(avatarValue, currentUser.id)
+        avatar_emoji: avatarEmoji
       }
     };
 
-    currentProfile = { ...(currentProfile || {}), nickname, avatar_url: avatarValue };
+    currentProfile = { ...(currentProfile || {}), nickname, avatar_url: avatarValue, id: currentUser.id };
     renderAuthUI();
     closeProfileModal();
+
+    Promise.allSettled([
+      withTimeout(
+        updateProfileCompat(client, currentUser.id, nickname, avatarValue, currentUser.id),
+        NETWORK_TIMEOUT_MS,
+        '保存资料超时'
+      ),
+      withTimeout(
+        client.auth.updateUser({
+          data: {
+            nickname,
+            avatar_url: avatarValue,
+            avatar_emoji: avatarEmoji
+          }
+        }),
+        NETWORK_TIMEOUT_MS,
+        '更新用户元数据超时'
+      )
+    ]).then((results) => {
+      const rejected = results.find(result => result.status === 'rejected');
+      if (rejected) {
+        console.error('资料同步失败:', rejected.reason);
+      }
+    });
   } catch (err) {
     errorEl.textContent = normalizeAuthErrorMessage(err?.message || '保存失败');
   } finally {

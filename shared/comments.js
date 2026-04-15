@@ -1,13 +1,12 @@
-/*  ==============================
-    Comments Module — 评论区
-    ==============================
-    使用方法：在结果页 DOM 中放一个 <div id="comments-section" data-page="soullab"></div>
-*/
+﻿/* ==============================
+   Comments Module
+   ============================== */
 
 let commentsLoaded = false;
 let selectedImageFile = null;
 let commentsFeatureAvailable = true;
 let commentsProfileMap = {};
+let commentRenderAuthHooked = false;
 
 function getCommentsClient() {
   if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
@@ -41,21 +40,43 @@ function isCommentsTableMissing(error) {
   return msg.includes("Could not find the table 'public.comments'") || msg.includes('PGRST205');
 }
 
+function getLiveCurrentProfile() {
+  if (!currentUser) return null;
+  return {
+    id: currentUser.id,
+    nickname: currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '用户',
+    avatar_url: currentProfile?.avatar_url || currentUser.user_metadata?.avatar_url || (currentUser.user_metadata?.avatar_emoji ? `emoji:${currentUser.user_metadata.avatar_emoji}` : '')
+  };
+}
+
+function getCommentDisplayProfile(userId) {
+  if (currentUser?.id && userId === currentUser.id) {
+    return { ...(commentsProfileMap[userId] || {}), ...(getLiveCurrentProfile() || {}) };
+  }
+  return commentsProfileMap[userId] || {};
+}
+
 async function loadCommentProfiles(client, comments) {
-  const userIds = [...new Set((comments || []).map(c => c.user_id).filter(Boolean))];
-  if (userIds.length === 0) {
-    commentsProfileMap = {};
-    return;
+  const userIds = [...new Set((comments || []).map(comment => comment.user_id).filter(Boolean))];
+  commentsProfileMap = {};
+
+  if (userIds.length > 0) {
+    const { data, error } = await client
+      .from('profiles')
+      .select('*')
+      .in('id', userIds);
+
+    if (error) throw error;
+    commentsProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
   }
 
-  const { data, error } = await client
-    .from('profiles')
-    .select('*')
-    .in('id', userIds);
-
-  if (error) throw error;
-
-  commentsProfileMap = Object.fromEntries((data || []).map(profile => [profile.id, profile]));
+  const liveProfile = getLiveCurrentProfile();
+  if (liveProfile?.id) {
+    commentsProfileMap[liveProfile.id] = {
+      ...(commentsProfileMap[liveProfile.id] || {}),
+      ...liveProfile
+    };
+  }
 }
 
 function renderAvatarIntoElement(elementId, avatarValue, seed, className) {
@@ -64,7 +85,6 @@ function renderAvatarIntoElement(elementId, avatarValue, seed, className) {
   el.outerHTML = getAvatarNodeHtml(avatarValue, seed, className).replace(`class="${className}"`, `id="${elementId}" class="${className}"`);
 }
 
-/* ── 初始化评论区 ── */
 function initComments() {
   const container = document.getElementById('comments-section');
   if (!container) return;
@@ -74,7 +94,7 @@ function initComments() {
   container.innerHTML = `
     <div class="comments-wrapper">
       <div class="comments-header">
-        <h3>留下你的一盏心灯</h3>
+        <h3>留下你的想法</h3>
         <span class="comments-count" id="comments-count">加载中...</span>
       </div>
 
@@ -88,7 +108,7 @@ function initComments() {
             <span class="comment-avatar comment-avatar-emoji" id="comment-avatar">🙂</span>
             <span id="comment-username">用户</span>
           </div>
-          <textarea id="comment-text" placeholder="写下你的想法…" maxlength="500" rows="3"></textarea>
+          <textarea id="comment-text" placeholder="写下你的想法..." maxlength="500" rows="3"></textarea>
           <div class="comment-input-actions">
             <label class="comment-upload-btn" title="上传图片">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -122,11 +142,19 @@ function initComments() {
     });
   }
 
+  if (!commentRenderAuthHooked && typeof renderAuthUI === 'function') {
+    const originalRenderAuthUI = renderAuthUI;
+    renderAuthUI = function () {
+      originalRenderAuthUI();
+      updateCommentInputState();
+    };
+    commentRenderAuthHooked = true;
+  }
+
   loadComments(pageType);
   updateCommentInputState();
 }
 
-/* ── 根据登录状态切换评论输入区 ── */
 function updateCommentInputState() {
   const loginHint = document.getElementById('comment-login-hint');
   const inputBox = document.getElementById('comment-input-box');
@@ -134,36 +162,27 @@ function updateCommentInputState() {
 
   if (!commentsFeatureAvailable) {
     loginHint.style.display = 'flex';
-    loginHint.innerHTML = '<p>评论功能尚未初始化，请先补齐 Supabase 的 comments 表</p>';
+    loginHint.innerHTML = '<p>评论功能尚未初始化，请先创建 comments 表。</p>';
     inputBox.style.display = 'none';
     return;
   }
 
   if (currentUser) {
+    const liveProfile = getLiveCurrentProfile();
     loginHint.style.display = 'none';
     inputBox.style.display = 'block';
+
     const username = document.getElementById('comment-username');
     if (username) {
-      username.textContent = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '用户';
+      username.textContent = liveProfile?.nickname || '用户';
     }
-    renderAvatarIntoElement('comment-avatar', currentProfile?.avatar_url, currentUser.id, 'comment-avatar');
+    renderAvatarIntoElement('comment-avatar', liveProfile?.avatar_url, currentUser.id, 'comment-avatar');
   } else {
     loginHint.style.display = 'flex';
     inputBox.style.display = 'none';
   }
 }
 
-// 监听登录状态变化时刷新评论输入区
-const origRenderAuthUI = typeof renderAuthUI === 'function' ? renderAuthUI : null;
-if (origRenderAuthUI) {
-  const _origRender = renderAuthUI;
-  renderAuthUI = function () {
-    _origRender();
-    updateCommentInputState();
-  };
-}
-
-/* ── 加载评论 ── */
 async function loadComments(pageType) {
   const client = getCommentsClient();
   const listEl = document.getElementById('comments-list');
@@ -179,49 +198,53 @@ async function loadComments(pageType) {
       .limit(50);
 
     if (error) throw error;
+
     commentsFeatureAvailable = true;
     await loadCommentProfiles(client, comments || []);
-    if (countEl) countEl.textContent = `${comments.length} 条`;
+
+    if (countEl) {
+      countEl.textContent = `${(comments || []).length} 条评论`;
+    }
 
     if (!comments || comments.length === 0) {
-      listEl.innerHTML = '<p class="comments-empty">还没有评论，来做第一个分享灵魂的人 ✨</p>';
+      listEl.innerHTML = '<p class="comments-empty">还没有评论，来做第一个留下想法的人。</p>';
       return;
     }
 
-    listEl.innerHTML = comments.map(c => renderComment(c)).join('');
+    listEl.innerHTML = comments.map(comment => renderComment(comment)).join('');
     commentsLoaded = true;
   } catch (err) {
     console.error('加载评论失败:', err);
     if (isCommentsTableMissing(err)) {
       commentsFeatureAvailable = false;
       if (countEl) countEl.textContent = '未启用';
-      listEl.innerHTML = '<p class="comments-empty">评论表未创建，评论功能暂不可用</p>';
+      listEl.innerHTML = '<p class="comments-empty">评论表未创建，评论功能暂不可用。</p>';
       updateCommentInputState();
       return;
     }
-    listEl.innerHTML = '<p class="comments-empty">评论加载失败，请刷新页面</p>';
+    listEl.innerHTML = '<p class="comments-empty">评论加载失败，请刷新页面重试。</p>';
   }
 }
 
-/* ── 渲染单条评论 ── */
-function renderComment(c) {
-  const profile = commentsProfileMap[c.user_id] || {};
-  const name = profile.nickname || '匿名';
-  const time = new Date(c.created_at).toLocaleString('zh-CN', {
+function renderComment(comment) {
+  const profile = getCommentDisplayProfile(comment.user_id);
+  const name = profile.nickname || '匿名用户';
+  const avatarValue = profile.avatar_url || getProfileAvatarValue(profile);
+  const time = new Date(comment.created_at).toLocaleString('zh-CN', {
     month: 'numeric',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
   });
-  const isOwner = currentUser && c.user_id === currentUser.id;
-  const imageHtml = c.image_url
-    ? `<div class="comment-img-wrap"><img src="${escapeAttr(c.image_url)}" alt="评论图片" onclick="openCommentImage(this.src)" loading="lazy"></div>`
+  const isOwner = Boolean(currentUser && comment.user_id === currentUser.id);
+  const imageHtml = comment.image_url
+    ? `<div class="comment-img-wrap"><img src="${escapeAttr(comment.image_url)}" alt="评论图片" onclick="openCommentImage(this.src)" loading="lazy"></div>`
     : '';
-  const deleteBtn = isOwner ? `<button class="comment-delete-btn" onclick="deleteComment('${c.id}', '${c.page_type}')">删除</button>` : '';
-  const avatarHtml = getAvatarNodeHtml(getProfileAvatarValue(profile), c.user_id || 'guest', 'comment-item-avatar');
+  const deleteBtn = isOwner ? `<button class="comment-delete-btn" onclick="deleteComment('${comment.id}', '${comment.page_type}')">删除</button>` : '';
+  const avatarHtml = getAvatarNodeHtml(avatarValue, comment.user_id || 'guest', 'comment-item-avatar');
 
   return `
-    <div class="comment-item" id="comment-${c.id}">
+    <div class="comment-item" id="comment-${comment.id}">
       ${avatarHtml}
       <div class="comment-item-body">
         <div class="comment-item-header">
@@ -229,19 +252,18 @@ function renderComment(c) {
           <span class="comment-item-time">${time}</span>
           ${deleteBtn}
         </div>
-        <p class="comment-item-text">${escapeHtml(c.content || '')}</p>
+        <p class="comment-item-text">${escapeHtml(comment.content || '')}</p>
         ${imageHtml}
       </div>
     </div>
   `;
 }
 
-/* ── 提交评论 ── */
 async function submitComment(pageType) {
   const client = getCommentsClient();
   if (!client) return;
   if (!commentsFeatureAvailable) {
-    alert('评论表尚未创建，当前无法发布评论');
+    alert('评论表尚未创建，当前无法发布评论。');
     return;
   }
 
@@ -264,7 +286,7 @@ async function submitComment(pageType) {
     let imageUrl = null;
 
     if (selectedImageFile) {
-      const fileExt = selectedImageFile.name.split('.').pop();
+      const fileExt = selectedImageFile.name.split('.').pop() || 'png';
       const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await client.storage
         .from('comment-images')
@@ -283,6 +305,14 @@ async function submitComment(pageType) {
     });
     if (error) throw error;
 
+    const liveProfile = getLiveCurrentProfile();
+    if (liveProfile?.id) {
+      commentsProfileMap[liveProfile.id] = {
+        ...(commentsProfileMap[liveProfile.id] || {}),
+        ...liveProfile
+      };
+    }
+
     textEl.value = '';
     const counter = document.getElementById('comment-char');
     if (counter) counter.textContent = '0';
@@ -291,30 +321,27 @@ async function submitComment(pageType) {
     await loadComments(pageType);
   } catch (err) {
     console.error('发布失败:', err);
-    alert('发布失败：' + (err.message || '未知错误'));
+    alert(`发布失败: ${err.message || '未知错误'}`);
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = '发布';
   }
 }
 
-/* ── 删除评论 ── */
 async function deleteComment(commentId, pageType) {
   const client = getCommentsClient();
-  if (!client) return;
-  if (!commentsFeatureAvailable) return;
+  if (!client || !commentsFeatureAvailable) return;
 
   if (!confirm('确定删除这条评论？')) return;
   try {
     const { error } = await client.from('comments').delete().eq('id', commentId);
     if (error) throw error;
     await loadComments(pageType);
-  } catch (_err) {
+  } catch (_error) {
     alert('删除失败');
   }
 }
 
-/* ── 图片预览 ── */
 function handleImagePreview(input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -327,11 +354,11 @@ function handleImagePreview(input) {
 
   selectedImageFile = file;
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = (event) => {
     const img = document.getElementById('comment-preview-img');
     const preview = document.getElementById('comment-image-preview');
     if (!img || !preview) return;
-    img.src = e.target.result;
+    img.src = event.target.result;
     preview.style.display = 'block';
   };
   reader.readAsDataURL(file);
@@ -347,7 +374,6 @@ function removeImagePreview() {
   if (input) input.value = '';
 }
 
-/* ── 查看评论大图 ── */
 function openCommentImage(src) {
   const overlay = document.createElement('div');
   overlay.className = 'comment-img-modal';
@@ -362,7 +388,6 @@ function openCommentImage(src) {
   });
 }
 
-/* ── 工具函数 ── */
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text || '';

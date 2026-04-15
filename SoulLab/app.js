@@ -1,4 +1,4 @@
-/* ==============================
+﻿/* ==============================
    App State
    ============================== */
 let currentQuestion = 0;
@@ -8,6 +8,8 @@ let scores = {};   // { personalityKey: totalScore }
 /* ==============================
    Load Participant Count
    ============================== */
+const RESULT_VIEW_TABLE = 'result_views';
+
 function getAppSupabaseClient() {
   if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
   if (window.db && typeof window.db.from === 'function') return window.db;
@@ -22,39 +24,60 @@ function getDisplayNickname() {
     || '';
 }
 
+function renderParticipantCount(element, count) {
+  if (!element) return;
+  const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
+  element.innerHTML = `已有 <span class="participant-number">${safeCount}</span> 人参与测试`;
+}
+
 async function loadParticipantCount() {
+  const client = getAppSupabaseClient();
+  const countEl = document.getElementById('soullab-participant-count');
+  if (!client || !countEl) return;
+
+  try {
+    let count = 0;
+    const resultViewRes = await client
+      .from(RESULT_VIEW_TABLE)
+      .select('*', { count: 'exact', head: true })
+      .eq('page_type', 'soullab');
+
+    if (resultViewRes.error) {
+      const commentRes = await client
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('page_type', 'soullab');
+      if (commentRes.error) throw commentRes.error;
+      count = commentRes.count || 0;
+    } else {
+      count = resultViewRes.count || 0;
+    }
+
+    renderParticipantCount(countEl, count);
+  } catch (err) {
+    console.error('加载参与人数失败:', err);
+    countEl.textContent = '参与人数统计暂不可用';
+  }
+}
+
+async function trackResultView() {
   const client = getAppSupabaseClient();
   if (!client) return;
 
   try {
-    const { count, error } = await client
-      .from('comments')
-      .select('*', { count: 'exact', head: true })
-      .eq('page_type', 'soullab');
-
-    if (error) throw error;
-
-    const countEl = document.getElementById('soullab-participant-count');
-    if (countEl) {
-      countEl.textContent = `已有 ${count || 0} 人参与测试`;
-    }
+    await client.from(RESULT_VIEW_TABLE).insert({ page_type: 'soullab' });
   } catch (err) {
-    console.error('加载参与人数失败:', err);
-    const countEl = document.getElementById('soullab-participant-count');
-    if (countEl) {
-      countEl.textContent = '参与人数统计暂不可用';
-    }
+    console.error('记录结果浏览失败:', err);
   }
+
+  loadParticipantCount();
 }
 
-// 页面加载时获取参与人数
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', loadParticipantCount);
 } else {
   loadParticipantCount();
-}
-
-/* ==============================
+}/* ==============================
    Particles Background
    ============================== */
 (function initParticles() {
@@ -365,6 +388,7 @@ function showResult() {
 
   // Show result page
   showPage('result');
+  trackResultView();
 
   // Animate meters with delay
   setTimeout(() => {
@@ -585,3 +609,4 @@ window.addEventListener('load', () => {
     startTest();
   }
 });
+
