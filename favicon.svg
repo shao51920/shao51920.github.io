@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#1d1233"/>
+      <stop offset="65%" stop-color="#0b0615"/>
+      <stop offset="100%" stop-color="#040209"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0d080"/>
+      <stop offset="45%" stop-color="#c9a84c"/>
+      <stop offset="100%" stop-color="#8a6a1a"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="42" fill="none" stroke="rgba(201,168,76,0.22)" stroke-width="1.5"/>
+  <circle cx="64" cy="64" r="32" fill="none" stroke="rgba(201,168,76,0.16)" stroke-width="1.2" stroke-dasharray="3 4"/>
+
+  <g filter="url(#glow)" stroke="url(#gold)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 64C31.5 45.2 47.4 35.8 64 35.8C80.6 35.8 96.5 45.2 107 64C96.5 82.8 80.6 92.2 64 92.2C47.4 92.2 31.5 82.8 21 64Z" stroke-width="4.2"/>
+    <circle cx="64" cy="64" r="18" stroke-width="2.8"/>
+    <circle cx="64" cy="64" r="8.5" fill="url(#gold)" stroke-width="1.8"/>
+    <path d="M64 20V30" stroke-width="2.6"/>
+    <path d="M64 98V108" stroke-width="2.6"/>
+    <path d="M40.8 39.2L33.6 32" stroke-width="2"/>
+    <path d="M87.2 39.2L94.4 32" stroke-width="2"/>
+    <path d="M40.8 88.8L33.6 96" stroke-width="2"/>
+    <path d="M87.2 88.8L94.4 96" stroke-width="2"/>
+  </g>
+</svg>

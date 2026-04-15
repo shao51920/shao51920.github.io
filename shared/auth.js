@@ -25,6 +25,7 @@ let profileAvatarFieldResolved = false;
 let pendingOtpEmail = '';
 let otpCooldownTimer = null;
 let otpCooldownSeconds = 0;
+const NETWORK_TIMEOUT_MS = 12000;
 
 function getAuthClient() {
   if (typeof supabase !== 'undefined' && supabase?.auth) return supabase;
@@ -109,6 +110,9 @@ window.AvatarKit = {
 function normalizeAuthErrorMessage(msg) {
   if (!msg) return '操作失败';
   const lowerMsg = String(msg).toLowerCase();
+  if (msg.includes('同步用户资料超时') || msg.includes('读取用户资料超时') || msg.includes('保存资料超时')) {
+    return '网络较慢，资料同步超时，请稍后刷新页面查看结果';
+  }
   if (msg.includes('Cannot read properties of undefined') && msg.includes('signUp')) {
     return '认证模块初始化失败，请刷新页面后重试';
   }
@@ -227,6 +231,54 @@ function escapeAttr(text) {
     .replace(/>/g, '&gt;');
 }
 
+function withTimeout(promise, ms, message) {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    })
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function buildLocalProfile(user) {
+  const nickname = user?.user_metadata?.nickname || user?.email || '匿名觉者';
+  const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
+  return {
+    nickname,
+    avatar_url: normalizeAvatarValue(`emoji:${avatarEmoji}`, user?.id || nickname)
+  };
+}
+
+async function syncProfileAfterAuth(client, user) {
+  if (!client || !user?.id) return;
+
+  const localProfile = buildLocalProfile(user);
+  currentUser = user;
+  currentProfile = { ...(currentProfile || {}), ...localProfile, id: user.id };
+  renderAuthUI();
+
+  try {
+    await withTimeout(
+      upsertProfileCompat(client, { id: user.id, nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
+      NETWORK_TIMEOUT_MS,
+      '同步用户资料超时'
+    );
+  } catch (_e) {
+    // Keep UI usable even if profile sync is delayed upstream.
+  }
+
+  try {
+    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
+  } catch (_e) {
+    currentProfile = { ...(currentProfile || {}), ...localProfile, id: user.id };
+  }
+
+  renderAuthUI();
+}
+
 /* ── 初始化：检查登录状态 ── */
 async function initAuth() {
   const client = getAuthClient();
@@ -235,17 +287,24 @@ async function initAuth() {
     return;
   }
 
-  const { data: { session } } = await client.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    await loadProfile();
+  try {
+    const { data: { session } } = await withTimeout(
+      client.auth.getSession(),
+      NETWORK_TIMEOUT_MS,
+      '读取登录状态超时'
+    );
+    if (session) {
+      await syncProfileAfterAuth(client, session.user);
+    }
+    renderAuthUI();
+  } catch (err) {
+    console.error(normalizeAuthErrorMessage(err?.message || '初始化登录状态失败'));
+    renderAuthUI();
   }
-  renderAuthUI();
 
   client.auth.onAuthStateChange(async (_event, session) => {
     if (session) {
-      currentUser = session.user;
-      await loadProfile();
+      await syncProfileAfterAuth(client, session.user);
     } else {
       currentUser = null;
       currentProfile = null;
@@ -374,7 +433,7 @@ function openAuthModal() {
     <div class="auth-modal-content">
       <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
       <h3 class="auth-modal-title">邮箱验证码登录</h3>
-      <p class="auth-modal-sub auth-modal-sub-main"></p>
+      <p class="auth-modal-sub auth-modal-sub-main">验证码验证成功后会自动回到已登录状态</p>
 
       <form id="auth-form" onsubmit="handleAuthSubmit(event)">
         <div class="auth-field">
@@ -385,7 +444,7 @@ function openAuthModal() {
         <div class="auth-otp-row">
           <div class="auth-field auth-otp-code-field">
             <label>验证码</label>
-            <input type="text" id="auth-code" placeholder="输入邮箱验证码" required autocomplete="one-time-code" maxlength="8">
+            <input type="text" id="auth-code" placeholder="输入 6 位验证码" required autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]*">
           </div>
           <button type="button" class="auth-otp-send-btn" id="auth-send-btn" onclick="sendEmailOtpCode()">发送验证码</button>
         </div>
@@ -478,14 +537,18 @@ async function sendEmailOtpCode() {
   setAuthHint('正在发送验证码，请稍候');
 
   try {
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true }
-    });
+    const { error } = await withTimeout(
+      client.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true }
+      }),
+      NETWORK_TIMEOUT_MS,
+      '发送验证码超时'
+    );
     if (error) throw error;
 
     pendingOtpEmail = email;
-    setAuthHint(`验证码已发送，请输入`);
+    setAuthHint(`验证码已发送到 ${email}`);
     startOtpCooldown(60);
     if (codeInput) codeInput.focus();
     updateOtpSubmitState();
@@ -523,40 +586,71 @@ async function handleAuthSubmit(e) {
       throw new Error('认证模块初始化失败，请刷新页面后重试');
     }
 
-    const { data, error } = await client.auth.verifyOtp({
-      email,
-      token,
-      type: 'email'
-    });
+    const { data, error } = await withTimeout(
+      client.auth.verifyOtp({
+        email,
+        token,
+        type: 'email'
+      }),
+      NETWORK_TIMEOUT_MS,
+      '验证码验证超时'
+    );
     if (error) throw error;
 
     let authedUser = data?.user || data?.session?.user || null;
     if (!authedUser) {
-      const { data: userData } = await client.auth.getUser();
+      const { data: userData } = await withTimeout(
+        client.auth.getUser(),
+        NETWORK_TIMEOUT_MS,
+        '读取用户信息超时'
+      );
       authedUser = userData?.user || null;
     }
 
     if (authedUser?.id) {
+      const localProfile = buildLocalProfile(authedUser);
       currentUser = authedUser;
-      const avatarEmoji = authedUser.user_metadata?.avatar_emoji || pickAvatarEmoji(authedUser.id);
-      const normalizedAvatar = normalizeAvatarValue(`emoji:${avatarEmoji}`, authedUser.id);
-      const nickname = authedUser.user_metadata?.nickname || authedUser.email || '匿名觉者';
+      currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+      renderAuthUI();
+      closeAuthModal();
+
+      const nickname = localProfile.nickname;
+      const normalizedAvatar = localProfile.avatar_url;
 
       try {
-        await upsertProfileCompat(client, { id: authedUser.id, nickname }, normalizedAvatar, authedUser.id);
+        await withTimeout(
+          upsertProfileCompat(client, { id: authedUser.id, nickname }, normalizedAvatar, authedUser.id),
+          NETWORK_TIMEOUT_MS,
+          '同步用户资料超时'
+        );
       } catch (_e) {
-        // ignore profile write failure and continue login
+        // Keep login successful even if profile sync is delayed.
       }
 
       try {
-        await client.auth.updateUser({
-          data: { nickname, avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id), avatar_url: normalizedAvatar }
-        });
+        await withTimeout(
+          client.auth.updateUser({
+            data: {
+              nickname,
+              avatar_emoji: getEmojiFromAvatarValue(normalizedAvatar, authedUser.id),
+              avatar_url: normalizedAvatar
+            }
+          }),
+          NETWORK_TIMEOUT_MS,
+          '更新用户元数据超时'
+        );
       } catch (_e) {
         // metadata update failure should not block login
       }
 
-      await loadProfile();
+      try {
+        await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
+      } catch (_e) {
+        currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+      }
+
+      renderAuthUI();
+      return;
     }
 
     closeAuthModal();
@@ -711,25 +805,37 @@ async function saveProfileChanges() {
     if (profileAvatarDraft.file) {
       const ext = profileAvatarDraft.file.name.split('.').pop() || 'png';
       const filePath = `avatars/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: uploadError } = await client.storage
-        .from('comment-images')
-        .upload(filePath, profileAvatarDraft.file, { cacheControl: '3600', upsert: true });
+      const { error: uploadError } = await withTimeout(
+        client.storage
+          .from('comment-images')
+          .upload(filePath, profileAvatarDraft.file, { cacheControl: '3600', upsert: true }),
+        NETWORK_TIMEOUT_MS,
+        '头像上传超时'
+      );
       if (uploadError) throw uploadError;
 
       const { data: publicData } = client.storage.from('comment-images').getPublicUrl(filePath);
       avatarValue = publicData.publicUrl;
     }
 
-    await updateProfileCompat(client, currentUser.id, nickname, avatarValue, currentUser.id);
+    await withTimeout(
+      updateProfileCompat(client, currentUser.id, nickname, avatarValue, currentUser.id),
+      NETWORK_TIMEOUT_MS,
+      '保存资料超时'
+    );
 
     try {
-      await client.auth.updateUser({
-        data: {
-          nickname,
-          avatar_url: avatarValue,
-          avatar_emoji: getEmojiFromAvatarValue(avatarValue, currentUser.id)
-        }
-      });
+      await withTimeout(
+        client.auth.updateUser({
+          data: {
+            nickname,
+            avatar_url: avatarValue,
+            avatar_emoji: getEmojiFromAvatarValue(avatarValue, currentUser.id)
+          }
+        }),
+        NETWORK_TIMEOUT_MS,
+        '更新用户元数据超时'
+      );
     } catch (_e) {
       // metadata sync failure does not block local profile update
     }
