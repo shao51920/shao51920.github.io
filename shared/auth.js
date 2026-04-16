@@ -379,9 +379,8 @@ const AuthTemplates = {
         </div>
 
         <div class="auth-field">
-          <label>个人简介</label>
-          <textarea id="profile-bio" maxlength="100" rows="3" placeholder="写点什么介绍自己...">${escapeAttr(currentProfile?.bio || '')}</textarea>
-          <span class="auth-field-hint">最多100字</span>
+          <label>签名</label>
+          <input type="text" id="profile-bio" maxlength="100" value="${escapeAttr(currentProfile?.bio || '')}" placeholder="写点什么介绍自己...">
         </div>
 
         <div class="profile-emoji-grid" id="profile-emoji-grid">
@@ -965,10 +964,12 @@ function buildLocalProfile(user) {
   const nickname = user?.user_metadata?.nickname || currentProfile?.nickname || buildFallbackNickname(user?.id || user?.email);
   const metadataAvatar = user?.user_metadata?.avatar_url || (user?.user_metadata?.avatar_emoji ? `emoji:${user.user_metadata.avatar_emoji}` : '');
   const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
+  const bio = user?.user_metadata?.bio || currentProfile?.bio || '';
   return {
     email: user?.email || '',
     nickname,
-    avatar_url: normalizeAvatarValue(metadataAvatar || `emoji:${avatarEmoji}`, user?.id || nickname)
+    avatar_url: normalizeAvatarValue(metadataAvatar || `emoji:${avatarEmoji}`, user?.id || nickname),
+    bio
   };
 }
 
@@ -980,7 +981,7 @@ async function syncProfileAfterAuth(client, user) {
 
   try {
     await withTimeout(
-      upsertProfileCompat(client, { id: user.id, email: user.email || '', nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
+      upsertProfileCompat(client, { id: user.id, email: user.email || '', nickname: localProfile.nickname, bio: localProfile.bio }, localProfile.avatar_url, user.id),
       NETWORK_TIMEOUT_MS,
       '同步用户资料超时'
     );
@@ -1081,7 +1082,8 @@ async function loadProfile() {
     await upsertProfileCompat(client, {
       id: currentUser.id,
       email: currentUser.email || '',
-      nickname: currentUser.user_metadata?.nickname || '匿名觉者'
+      nickname: currentUser.user_metadata?.nickname || '匿名觉者',
+      bio: currentUser.user_metadata?.bio || ''
     }, normalizedAvatar, currentUser.id);
   } catch (_e) {
     // if profiles write fails, still keep auth usable with metadata fallback

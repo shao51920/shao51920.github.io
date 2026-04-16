@@ -628,7 +628,7 @@ function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = f
       ${avatarHtml}
       <div class="comment-item-body">
         <div class="comment-item-header">
-          <span class="comment-item-name" onclick="showUserProfilePopup('${comment.user_id}')" title="点击查看个人简介">${escapeHtml(name)}</span>
+          <span class="comment-item-name" onclick="showUserProfilePopup('${comment.user_id}')" title="点击查看签名">${escapeHtml(name)}</span>
           <span class="comment-item-time">${time}</span>
           ${optimisticBadge}
           ${deleteBtn}
@@ -669,7 +669,7 @@ function showUserProfilePopup(userId) {
   
   const name = liveProfile.nickname || '匿名用户';
   const avatarValue = liveProfile.avatar_url || '';
-  const bio = liveProfile.bio || '这个人很懒，还没有写简介~';
+  const bio = liveProfile.bio || '这个人很懒，还没有写签名~';
   
   // 创建弹窗
   const popupId = 'user-profile-popup-' + Date.now();
