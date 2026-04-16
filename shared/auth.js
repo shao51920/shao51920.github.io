@@ -284,232 +284,20 @@ function shouldOpenPasswordReset() {
   }
 }
 
-function buildFallbackNickname(seed) {
-  return `觉者${100 + (hashSeed(seed || Date.now()) % 900)}`;
-}
-
-async function generateDefaultNickname(client) {
-  let candidateNumber = 100;
-
-  try {
-    const { count, error } = await client
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-
-    if (!error) {
-      candidateNumber = 100 + (count || 0);
-    }
-  } catch (_error) {
-    candidateNumber = 100 + (Date.now() % 900);
-  }
-
-  for (let offset = 0; offset < 8; offset++) {
-    const nickname = `觉者${candidateNumber + offset}`;
-    try {
-      const { data, error } = await client
-        .from('profiles')
-        .select('id')
-        .eq('nickname', nickname)
-        .limit(1);
-
-      if (error || !Array.isArray(data) || data.length === 0) {
-        return nickname;
-      }
-    } catch (_error) {
-      return nickname;
-    }
-  }
-
-  return buildFallbackNickname(Date.now());
-}
-
-async function ensureNicknameAvailable(client, nickname, excludeUserId) {
-  const trimmedNickname = String(nickname || '').trim();
-  if (!trimmedNickname) {
-    throw new Error('昵称不能为空');
-  }
-
-  const { data, error } = await client
-    .from('profiles')
-    .select('id, nickname')
-    .ilike('nickname', trimmedNickname)
-    .limit(12);
-
-  if (error) {
-    throw error;
-  }
-
-  const normalized = trimmedNickname.toLowerCase();
-  const conflict = (data || []).find((row) => row.id !== excludeUserId && String(row.nickname || '').trim().toLowerCase() === normalized);
-  if (conflict) {
-    throw new Error('昵称已存在，请换一个');
-  }
-}
-
-function buildLocalProfile(user) {
-  const nickname = user?.user_metadata?.nickname || currentProfile?.nickname || buildFallbackNickname(user?.id || user?.email);
-  const metadataAvatar = user?.user_metadata?.avatar_url || (user?.user_metadata?.avatar_emoji ? `emoji:${user.user_metadata.avatar_emoji}` : '');
-  const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
-  return {
-    email: user?.email || '',
-    nickname,
-    avatar_url: normalizeAvatarValue(metadataAvatar || `emoji:${avatarEmoji}`, user?.id || nickname)
-  };
-}
-
-async function syncProfileAfterAuth(client, user) {
-  if (!client || !user?.id) return;
-
-  const localProfile = buildLocalProfile(user);
-  currentUser = user;
-  currentProfile = { ...(currentProfile || {}), ...localProfile, id: user.id };
-  renderAuthUI();
-
-  try {
-    await withTimeout(
-      upsertProfileCompat(client, { id: user.id, email: user.email || '', nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
-      NETWORK_TIMEOUT_MS,
-      '同步用户资料超时'
-    );
-  } catch (_e) {
-    // Keep UI usable even if profile sync is delayed upstream.
-  }
-
-  try {
-    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
-  } catch (_e) {
-    currentProfile = { ...(currentProfile || {}), ...localProfile, id: user.id };
-  }
-
-  renderAuthUI();
-}
-
-/* 鈹€鈹€ 鍒濆鍖栵細妫€鏌ョ櫥褰曠姸鎬?鈹€鈹€ */
-async function initAuth() {
-  const client = getAuthClient();
-  if (!client?.auth) {
-    console.error('Supabase Client 未初始化，auth 模块未启动');
-    return;
-  }
-
-  try {
-    const { data: { session } } = await withTimeout(
-      client.auth.getSession(),
-      NETWORK_TIMEOUT_MS,
-      '读取登录状态超时'
-    );
-    if (session) {
-      await syncProfileAfterAuth(client, session.user);
-      if (shouldOpenPasswordReset()) {
-        openPasswordResetModal();
-      }
-    }
-    renderAuthUI();
-  } catch (err) {
-    console.error(normalizeAuthErrorMessage(err?.message || '初始化登录状态失败'));
-    renderAuthUI();
-  }
-
-  client.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'PASSWORD_RECOVERY' && session?.user) {
-      await syncProfileAfterAuth(client, session.user);
-      openPasswordResetModal();
-      return;
+const AuthTemplates = {
+  authStatus() {
+    if (currentUser) {
+      const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '用户';
+      const avatarHtml = avatarToBadgeHtml(currentProfile?.avatar_url, currentUser.id, 'auth-avatar');
+      return `
+        <div class="auth-user" onclick="openEditProfile()">
+          ${avatarHtml}
+          <span class="auth-name">${displayName}</span>
+        </div>
+      `;
     }
 
-    if (session) {
-      await syncProfileAfterAuth(client, session.user);
-    } else {
-      currentUser = null;
-      currentProfile = null;
-    }
-    renderAuthUI();
-  });
-}
-
-/* 鈹€鈹€ 鍔犺浇鐢ㄦ埛 Profile 鈹€鈹€ */
-async function loadProfile() {
-  const client = getAuthClient();
-  if (!client || !currentUser) return;
-
-  const { data } = await client
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .maybeSingle();
-
-  if (data) {
-    const inferredField = inferAvatarFieldFromProfile(data);
-    if (inferredField) {
-      resolvedProfileAvatarField = inferredField;
-      profileAvatarFieldResolved = true;
-    }
-    const metadataAvatar = buildLocalProfile(currentUser).avatar_url;
-    const normalizedAvatar = inferredField
-      ? getAvatarFromProfileRecord(data, currentUser.id)
-      : metadataAvatar;
-    currentProfile = { ...data, avatar_url: normalizedAvatar };
-    const originalAvatar = getAvatarFromProfileRecord({
-      avatar_url: data.avatar_url,
-      avatar: data.avatar,
-      avatar_emoji: data.avatar_emoji
-    }, currentUser.id);
-    if (normalizedAvatar !== originalAvatar) {
-      try {
-        await updateProfileCompat(client, currentUser.id, currentProfile.nickname || '匿名觉者', normalizedAvatar, currentUser.id);
-      } catch (_e) {
-        // ignore avatar normalization failure to avoid blocking auth flow
-      }
-    }
-    return;
-  }
-
-  const avatarEmoji = currentUser.user_metadata?.avatar_emoji || pickAvatarEmoji(currentUser.id);
-  const normalizedAvatar = normalizeAvatarValue(`emoji:${avatarEmoji}`, currentUser.id);
-  try {
-    await upsertProfileCompat(client, {
-      id: currentUser.id,
-      email: currentUser.email || '',
-      nickname: currentUser.user_metadata?.nickname || '匿名觉者'
-    }, normalizedAvatar, currentUser.id);
-  } catch (_e) {
-    // if profiles write fails, still keep auth usable with metadata fallback
-  }
-
-  const { data: fallbackProfile } = await client
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .maybeSingle();
-
-  if (fallbackProfile) {
-    const fallbackAvatar = getAvatarFromProfileRecord(fallbackProfile, currentUser.id);
-    currentProfile = { ...fallbackProfile, avatar_url: fallbackAvatar };
-    return;
-  }
-
-  currentProfile = {
-    nickname: currentUser.user_metadata?.nickname || currentUser.email || '用户',
-    avatar_url: normalizedAvatar
-  };
-}
-
-/* 鈹€鈹€ 娓叉煋椤堕儴鐧诲綍鐘舵€?鈹€鈹€ */
-function renderAuthUI() {
-  const container = document.getElementById('auth-status');
-  if (!container) return;
-
-  if (currentUser) {
-    const displayName = currentProfile?.nickname || currentUser.user_metadata?.nickname || currentUser.email || '用户';
-    const avatarHtml = avatarToBadgeHtml(currentProfile?.avatar_url, currentUser.id, 'auth-avatar');
-    container.innerHTML = `
-      <div class="auth-user" onclick="openEditProfile()">
-        ${avatarHtml}
-        <span class="auth-name">${displayName}</span>
-      </div>
-    `;
-  } else {
-    container.innerHTML = `
+    return `
       <button class="auth-login-btn" onclick="openAuthModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -518,226 +306,224 @@ function renderAuthUI() {
         登录
       </button>
     `;
-  }
-}
+  },
 
-function openAuthModal() {
-  const existing = document.getElementById('auth-modal');
-  if (existing) existing.remove();
-  authMode = 'login';
-  pendingRegisterEmail = '';
-  pendingRegisterNickname = '';
+  authModal() {
+    return `
+      <div class="auth-modal-backdrop" onclick="closeAuthModal()"></div>
+      <div class="auth-modal-content">
+        <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
+        <div class="auth-mode-switch">
+          <button type="button" class="auth-mode-tab active" id="auth-tab-login" onclick="setAuthMode('login')">登录</button>
+          <button type="button" class="auth-mode-tab" id="auth-tab-register" onclick="setAuthMode('register')">注册</button>
+        </div>
+        <p class="auth-modal-sub auth-modal-sub-main" id="auth-modal-sub">登录后可修改昵称</p>
 
-  const modal = document.createElement('div');
-  modal.id = 'auth-modal';
-  modal.className = 'auth-modal';
-  modal.innerHTML = `
-    <div class="auth-modal-backdrop" onclick="closeAuthModal()"></div>
-    <div class="auth-modal-content">
-      <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
-      <div class="auth-mode-switch">
-        <button type="button" class="auth-mode-tab active" id="auth-tab-login" onclick="setAuthMode('login')">登录</button>
-        <button type="button" class="auth-mode-tab" id="auth-tab-register" onclick="setAuthMode('register')">注册</button>
+        <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+          <div class="auth-field">
+            <label>邮箱</label>
+            <input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email">
+          </div>
+
+          <div class="auth-field">
+            <label>密码</label>
+            <div class="auth-input-wrap">
+              <input type="password" id="auth-password" placeholder="请输入密码" required autocomplete="current-password" minlength="6">
+              <button type="button" class="auth-password-toggle" onclick="togglePasswordVisibility('auth-password', this)" aria-label="显示密码">👁</button>
+            </div>
+          </div>
+
+          <div class="auth-otp-row is-hidden" id="auth-otp-row">
+            <div class="auth-field auth-otp-code-field">
+              <label>验证码</label>
+              <input type="text" id="auth-code" placeholder="输入验证码" autocomplete="one-time-code" inputmode="numeric">
+            </div>
+            <button type="button" class="auth-otp-send-btn" id="auth-send-btn" onclick="sendRegisterOtpCode()">发送验证码</button>
+          </div>
+
+          <div class="auth-helper-row" id="auth-helper-row">
+            <button type="button" class="auth-text-link" id="auth-forgot-btn" onclick="sendPasswordResetLink()">忘记密码？</button>
+          </div>
+
+          <p class="auth-error" id="auth-error"></p>
+          <button type="submit" class="auth-submit-btn" id="auth-submit-btn">登录</button>
+        </form>
       </div>
-      <p class="auth-modal-sub auth-modal-sub-main" id="auth-modal-sub">登录后可修改昵称</p>
+    `;
+  },
 
-      <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+  profileModal() {
+    return `
+      <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
+      <div class="auth-modal-content profile-edit-content">
+        <button class="auth-modal-logout" onclick="confirmLogout()" title="退出登录" aria-label="退出登录">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+        <button class="auth-modal-close" onclick="closeProfileModal()">✕</button>
+        <h3 class="profile-edit-title">编辑资料</h3>
+
+        <div class="profile-avatar-preview" id="profile-avatar-preview"></div>
+
         <div class="auth-field">
-          <label>邮箱</label>
-          <input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email">
+          <label>昵称</label>
+          <input type="text" id="profile-nickname" maxlength="20" value="${escapeAttr(currentProfile?.nickname || '')}">
         </div>
 
+        <div class="profile-emoji-grid" id="profile-emoji-grid">
+          ${AVATAR_EMOJIS.map((emoji) => `
+            <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
+          `).join('')}
+        </div>
+
+        <label class="profile-upload-btn">
+          上传头像图片
+          <input type="file" id="profile-avatar-file" accept="image/*" onchange="handleProfileAvatarFile(this)">
+        </label>
+
+        <p class="auth-error" id="profile-edit-error"></p>
+        <button type="button" class="auth-submit-btn" id="profile-save-btn" onclick="saveProfileChanges()">保存资料</button>
+      </div>
+    `;
+  },
+
+  passwordResetModal() {
+    return `
+      <div class="auth-modal-backdrop" onclick="closePasswordResetModal()"></div>
+      <div class="auth-modal-content">
+        <button class="auth-modal-close" onclick="closePasswordResetModal()">✕</button>
+        <h3 class="profile-edit-title">重置密码</h3>
+        <p class="auth-modal-sub auth-modal-sub-main">请输入新的登录密码</p>
         <div class="auth-field">
-          <label>密码</label>
+          <label>新密码</label>
           <div class="auth-input-wrap">
-            <input type="password" id="auth-password" placeholder="请输入密码" required autocomplete="current-password" minlength="6">
-            <button type="button" class="auth-password-toggle" onclick="togglePasswordVisibility('auth-password', this)" aria-label="显示密码">👁</button>
+            <input type="password" id="reset-password-input" placeholder="至少6位" autocomplete="new-password" minlength="6">
+            <button type="button" class="auth-password-toggle" onclick="togglePasswordVisibility('reset-password-input', this)" aria-label="显示密码">👁</button>
           </div>
         </div>
-
-        <div class="auth-otp-row is-hidden" id="auth-otp-row">
-          <div class="auth-field auth-otp-code-field">
-            <label>验证码</label>
-            <input type="text" id="auth-code" placeholder="输入验证码" autocomplete="one-time-code" inputmode="numeric">
-          </div>
-          <button type="button" class="auth-otp-send-btn" id="auth-send-btn" onclick="sendRegisterOtpCode()">发送验证码</button>
-        </div>
-
-        <div class="auth-helper-row" id="auth-helper-row">
-          <button type="button" class="auth-text-link" id="auth-forgot-btn" onclick="sendPasswordResetLink()">忘记密码？</button>
-        </div>
-
-        <p class="auth-error" id="auth-error"></p>
-        <button type="submit" class="auth-submit-btn" id="auth-submit-btn">登录</button>
-      </form>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => modal.classList.add('show'));
-
-  const emailInput = document.getElementById('auth-email');
-  const passwordInput = document.getElementById('auth-password');
-  const codeInput = document.getElementById('auth-code');
-  if (emailInput) emailInput.addEventListener('input', updateAuthSubmitState);
-  if (passwordInput) passwordInput.addEventListener('input', updateAuthSubmitState);
-  if (codeInput) codeInput.addEventListener('input', updateAuthSubmitState);
-  setAuthMode('login');
-}
-
-function closeAuthModal() {
-  const modal = document.getElementById('auth-modal');
-  if (modal) {
-    modal.classList.remove('show');
-    setTimeout(() => modal.remove(), 300);
+        <p class="auth-error" id="reset-password-error"></p>
+        <button type="button" class="auth-submit-btn" id="reset-password-btn" onclick="submitPasswordReset()">保存新密码</button>
+      </div>
+    `;
   }
-  pendingRegisterEmail = '';
-  pendingRegisterNickname = '';
-  if (otpCooldownTimer) {
-    clearInterval(otpCooldownTimer);
-    otpCooldownTimer = null;
+};
+
+const AuthService = (() => {
+  const listeners = new Set();
+
+  function notify(type, payload = {}) {
+    const snapshot = {
+      currentUser,
+      currentProfile,
+      authMode,
+      pendingRegisterEmail,
+      pendingRegisterNickname,
+      otpCooldownSeconds,
+      profileAvatarDraft: { ...profileAvatarDraft }
+    };
+    listeners.forEach((listener) => {
+      try {
+        listener(snapshot, { type, ...payload });
+      } catch (error) {
+        console.error('Auth state listener failed:', error);
+      }
+    });
   }
-  otpCooldownSeconds = 0;
-}
 
-function togglePasswordVisibility(inputId, trigger) {
-  const input = document.getElementById(inputId);
-  if (!input || !trigger) return;
+  function subscribe(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
 
-  const showPassword = input.type === 'password';
-  input.type = showPassword ? 'text' : 'password';
-  trigger.textContent = showPassword ? '🙈' : '👁';
-  trigger.setAttribute('aria-label', showPassword ? '隐藏密码' : '显示密码');
-}
+  function setSession(user, profile, type = 'session') {
+    currentUser = user;
+    currentProfile = profile;
+    notify(type);
+  }
 
-function setAuthMode(mode) {
-  authMode = mode === 'register' ? 'register' : 'login';
-  updateAuthModalUI();
-}
+  function setAuthModeState(mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    notify('auth-mode');
+  }
 
-function updateAuthModalUI() {
-  const loginTab = document.getElementById('auth-tab-login');
-  const registerTab = document.getElementById('auth-tab-register');
-  const subtitle = document.getElementById('auth-modal-sub');
-  const otpRow = document.getElementById('auth-otp-row');
-  const passwordInput = document.getElementById('auth-password');
-  const codeInput = document.getElementById('auth-code');
-  const submitBtn = document.getElementById('auth-submit-btn');
-  const helperRow = document.getElementById('auth-helper-row');
-  const errorEl = document.getElementById('auth-error');
-  if (!loginTab || !registerTab || !subtitle || !otpRow || !passwordInput || !codeInput || !submitBtn || !errorEl || !helperRow) return;
-
-  const registerMode = authMode === 'register';
-  loginTab.classList.toggle('active', !registerMode);
-  registerTab.classList.toggle('active', registerMode);
-  subtitle.textContent = registerMode ? '登录后可获得更多权限' : '登录后可修改昵称';
-  otpRow.classList.toggle('is-hidden', !registerMode);
-  helperRow.classList.toggle('is-hidden', registerMode);
-  passwordInput.autocomplete = registerMode ? 'new-password' : 'current-password';
-  codeInput.required = registerMode;
-  submitBtn.textContent = getAuthSubmitLabel();
-  markAuthMessage('');
-  setOtpButtonLabel();
-  updateAuthSubmitState();
-}
-
-function updateAuthSubmitState() {
-  const submitBtn = document.getElementById('auth-submit-btn');
-  const emailInput = document.getElementById('auth-email');
-  const passwordInput = document.getElementById('auth-password');
-  const codeInput = document.getElementById('auth-code');
-  if (!submitBtn || !emailInput || !passwordInput || !codeInput) return;
-
-  const email = emailInput.value.trim();
-  const password = passwordInput.value.trim();
-  const code = codeInput.value.trim();
-  const registerMode = authMode === 'register';
-  submitBtn.disabled = !email || !password || (registerMode && !code);
-}
-
-function setOtpButtonLabel() {
-  const sendBtn = document.getElementById('auth-send-btn');
-  if (!sendBtn) return;
-  sendBtn.textContent = otpCooldownSeconds > 0 ? `${otpCooldownSeconds}s` : '发送验证码';
-  sendBtn.disabled = otpCooldownSeconds > 0;
-}
-
-function startOtpCooldown(seconds) {
-  otpCooldownSeconds = seconds;
-  setOtpButtonLabel();
-  if (otpCooldownTimer) clearInterval(otpCooldownTimer);
-  otpCooldownTimer = setInterval(() => {
-    otpCooldownSeconds -= 1;
-    if (otpCooldownSeconds <= 0) {
-      otpCooldownSeconds = 0;
+  function resetFlowState() {
+    pendingRegisterEmail = '';
+    pendingRegisterNickname = '';
+    if (otpCooldownTimer) {
       clearInterval(otpCooldownTimer);
       otpCooldownTimer = null;
     }
-    setOtpButtonLabel();
-  }, 1000);
-}
+    otpCooldownSeconds = 0;
+    authMode = 'login';
+    notify('auth-flow-reset');
+  }
 
-function primeAuthenticatedUI(authedUser, overrideNickname) {
-  const localProfile = buildLocalProfile({
-    ...authedUser,
-    user_metadata: {
-      ...(authedUser?.user_metadata || {}),
-      ...(overrideNickname ? { nickname: overrideNickname } : {})
+  function startCooldown(seconds) {
+    otpCooldownSeconds = seconds;
+    notify('otp-cooldown');
+    if (otpCooldownTimer) clearInterval(otpCooldownTimer);
+    otpCooldownTimer = setInterval(() => {
+      otpCooldownSeconds -= 1;
+      if (otpCooldownSeconds <= 0) {
+        otpCooldownSeconds = 0;
+        clearInterval(otpCooldownTimer);
+        otpCooldownTimer = null;
+      }
+      notify('otp-cooldown');
+    }, 1000);
+  }
+
+  function syncProfileDraft() {
+    if (!currentUser) return;
+    profileAvatarDraft = {
+      emoji: getEmojiFromAvatarValue(currentProfile?.avatar_url, currentUser.id),
+      file: null,
+      previewUrl: ''
+    };
+    notify('profile-draft');
+  }
+
+  function setProfileDraftEmoji(emoji) {
+    profileAvatarDraft.emoji = emoji;
+    profileAvatarDraft.file = null;
+    if (profileAvatarDraft.previewUrl) {
+      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
+      profileAvatarDraft.previewUrl = '';
     }
-  });
-  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
+    notify('profile-draft');
+  }
 
-  currentUser = {
-    ...authedUser,
-    user_metadata: {
-      ...(authedUser?.user_metadata || {}),
-      nickname: localProfile.nickname,
-      avatar_emoji: avatarEmoji,
-      avatar_url: localProfile.avatar_url
+  function setProfileDraftFile(file, previewUrl) {
+    if (profileAvatarDraft.previewUrl) {
+      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
     }
-  };
-  currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
-  renderAuthUI();
-  return localProfile;
-}
-
-async function ensureRegisterAccountAvailable(client, email) {
-  const { data, error } = await client
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .limit(1);
-
-  if (!error && (data || []).length > 0) {
-    throw new Error('该邮箱已注册，请直接登录');
-  }
-}
-
-async function sendRegisterOtpCode() {
-  const client = getAuthClient();
-  const emailInput = document.getElementById('auth-email');
-  const passwordInput = document.getElementById('auth-password');
-  const sendBtn = document.getElementById('auth-send-btn');
-  const errorEl = document.getElementById('auth-error');
-  if (!client?.auth || !emailInput || !passwordInput || !sendBtn || !errorEl) return;
-
-  const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value.trim();
-  if (!email) {
-    errorEl.textContent = '请输入邮箱';
-    return;
-  }
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    errorEl.textContent = `密码至少需要 ${MIN_PASSWORD_LENGTH} 位`;
-    return;
+    profileAvatarDraft.file = file;
+    profileAvatarDraft.previewUrl = previewUrl;
+    notify('profile-draft');
   }
 
-  markAuthMessage('');
-  sendBtn.disabled = true;
-  sendBtn.textContent = '发送中...';
+  function releaseProfileDraft() {
+    if (profileAvatarDraft.previewUrl) {
+      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
+    }
+    profileAvatarDraft.previewUrl = '';
+    profileAvatarDraft.file = null;
+    notify('profile-draft');
+  }
 
-  try {
+  async function sendOtp(email, password) {
+    const client = getAuthClient();
+    if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
+    if (!email) throw new Error('请输入邮箱');
+    if (password.length < MIN_PASSWORD_LENGTH) throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
+
     await ensureRegisterAccountAvailable(client, email);
     pendingRegisterNickname = await generateDefaultNickname(client);
+    notify('auth-flow-reset');
+
     const { error } = await withTimeout(
       client.auth.signInWithOtp({
         email,
@@ -754,34 +540,15 @@ async function sendRegisterOtpCode() {
     if (error) throw error;
 
     pendingRegisterEmail = email;
-    startOtpCooldown(60);
-    markAuthMessage('验证码已发送，请查收邮箱', true);
-  } catch (err) {
-    markAuthMessage(normalizeAuthErrorMessage(err?.message || '发送验证码失败'));
-    otpCooldownSeconds = 0;
-    setOtpButtonLabel();
-  }
-}
-
-async function sendPasswordResetLink() {
-  const client = getAuthClient();
-  const emailInput = document.getElementById('auth-email');
-  if (!client?.auth || !emailInput) return;
-
-  const email = emailInput.value.trim().toLowerCase();
-  if (!email) {
-    markAuthMessage('请先输入邮箱');
-    emailInput.focus();
-    return;
+    notify('auth-flow-reset');
+    startCooldown(60);
   }
 
-  const forgotBtn = document.getElementById('auth-forgot-btn');
-  if (forgotBtn) {
-    forgotBtn.disabled = true;
-    forgotBtn.textContent = '发送中...';
-  }
+  async function sendResetLink(email) {
+    const client = getAuthClient();
+    if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
+    if (!email) throw new Error('请先输入邮箱');
 
-  try {
     const { error } = await withTimeout(
       client.auth.resetPasswordForEmail(email, {
         redirectTo: getPasswordResetRedirectUrl()
@@ -790,86 +557,11 @@ async function sendPasswordResetLink() {
       '发送重置链接超时'
     );
     if (error) throw error;
-    markAuthMessage('重置链接已发送，请查收邮箱', true);
-  } catch (err) {
-    markAuthMessage(normalizeAuthErrorMessage(err?.message || '发送重置链接失败'));
-  } finally {
-    if (forgotBtn) {
-      forgotBtn.disabled = false;
-      forgotBtn.textContent = '忘记密码？';
-    }
-  }
-}
-
-async function finishPasswordAuth(client, authedUser, overrideNickname) {
-  if (!authedUser?.id) return;
-
-  const localProfile = primeAuthenticatedUI(authedUser, overrideNickname);
-  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
-
-  await Promise.allSettled([
-    withTimeout(
-      upsertProfileCompat(
-        client,
-        {
-          id: authedUser.id,
-          email: authedUser.email || '',
-          nickname: localProfile.nickname
-        },
-        localProfile.avatar_url,
-        authedUser.id
-      ),
-      NETWORK_TIMEOUT_MS,
-      '同步用户资料超时'
-    ),
-    withTimeout(
-      client.auth.updateUser({
-        data: {
-          nickname: localProfile.nickname,
-          avatar_emoji: avatarEmoji,
-          avatar_url: localProfile.avatar_url
-        }
-      }),
-      NETWORK_TIMEOUT_MS,
-      '更新用户元数据超时'
-    )
-  ]);
-
-  try {
-    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
-  } catch (_error) {
-    currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
   }
 
-  renderAuthUI();
-}
-
-async function handleAuthSubmit(e) {
-  e.preventDefault();
-  const client = getAuthClient();
-  const emailInput = document.getElementById('auth-email');
-  const passwordInput = document.getElementById('auth-password');
-  const codeInput = document.getElementById('auth-code');
-  const errorEl = document.getElementById('auth-error');
-  const submitBtn = document.getElementById('auth-submit-btn');
-  if (!emailInput || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
-
-  const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value.trim();
-  const code = codeInput.value.trim();
-  if (!email || !password) {
-    errorEl.textContent = '请输入邮箱和密码';
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = authMode === 'register' ? '验证中...' : '登录中...';
-  markAuthMessage('');
-
-  try {
-    if (!client?.auth) {
-      throw new Error('认证模块初始化失败，请刷新页面后重试');
-    }
+  async function submitAuthForm({ email, password, code }) {
+    const client = getAuthClient();
+    if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
 
     if (authMode === 'register') {
       const registerNickname = pendingRegisterNickname || await generateDefaultNickname(client);
@@ -949,15 +641,17 @@ async function handleAuthSubmit(e) {
       await client.auth.signOut();
       currentUser = null;
       currentProfile = null;
-      setAuthMode('login');
-      emailInput.value = email;
-      passwordInput.value = password;
-      codeInput.value = '';
       pendingRegisterEmail = '';
       pendingRegisterNickname = '';
-      renderAuthUI();
-      updateAuthSubmitState();
-      return;
+      authMode = 'login';
+      if (otpCooldownTimer) {
+        clearInterval(otpCooldownTimer);
+        otpCooldownTimer = null;
+      }
+      otpCooldownSeconds = 0;
+      notify('register-complete');
+
+      return { mode: 'register', email, password };
     }
 
     const { data, error } = await withTimeout(
@@ -969,10 +663,635 @@ async function handleAuthSubmit(e) {
 
     if (data?.user) {
       primeAuthenticatedUI(data.user);
-      closeAuthModal();
       finishPasswordAuth(client, data.user).catch((syncError) => {
         console.error('登录后资料同步失败:', syncError);
       });
+    }
+
+    return { mode: 'login', data };
+  }
+
+  async function logoutSession() {
+    const client = getAuthClient();
+    currentUser = null;
+    currentProfile = null;
+    notify('logout-local');
+
+    if (!client?.auth) return;
+
+    try {
+      await withTimeout(client.auth.signOut(), 5000, '退出登录超时');
+    } catch (error) {
+      console.error('退出登录失败:', error);
+    }
+  }
+
+  async function saveProfile(nickname) {
+    const client = getAuthClient();
+    if (!client || !currentUser) throw new Error('用户未登录');
+
+    const nextNickname = nickname || currentProfile?.nickname || buildFallbackNickname(currentUser.id);
+    await ensureNicknameAvailable(client, nextNickname, currentUser.id);
+
+    let avatarValue = normalizeAvatarValue(`emoji:${profileAvatarDraft.emoji || pickAvatarEmoji(currentUser.id)}`, currentUser.id);
+
+    if (profileAvatarDraft.file) {
+      const ext = profileAvatarDraft.file.name.split('.').pop() || 'png';
+      const filePath = `avatars/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: uploadError } = await withTimeout(
+        client.storage
+          .from('comment-images')
+          .upload(filePath, profileAvatarDraft.file, { cacheControl: '3600', upsert: true }),
+        NETWORK_TIMEOUT_MS,
+        '头像上传超时'
+      );
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = client.storage.from('comment-images').getPublicUrl(filePath);
+      avatarValue = publicData.publicUrl;
+    }
+
+    const avatarEmoji = getEmojiFromAvatarValue(avatarValue, currentUser.id);
+    currentUser = {
+      ...(currentUser || {}),
+      user_metadata: {
+        ...((currentUser && currentUser.user_metadata) || {}),
+        nickname: nextNickname,
+        avatar_url: avatarValue,
+        avatar_emoji: avatarEmoji
+      }
+    };
+    currentProfile = { ...(currentProfile || {}), nickname: nextNickname, avatar_url: avatarValue, id: currentUser.id };
+    notify('profile-saved-local');
+
+    Promise.allSettled([
+      withTimeout(
+        updateProfileCompat(client, currentUser.id, nextNickname, avatarValue, currentUser.id),
+        NETWORK_TIMEOUT_MS,
+        '保存资料超时'
+      ),
+      withTimeout(
+        client.auth.updateUser({
+          data: {
+            nickname: nextNickname,
+            avatar_url: avatarValue,
+            avatar_emoji: avatarEmoji
+          }
+        }),
+        NETWORK_TIMEOUT_MS,
+        '更新用户元数据超时'
+      )
+    ]).then((results) => {
+      const rejected = results.find((result) => result.status === 'rejected');
+      if (rejected) {
+        console.error('资料同步失败:', rejected.reason);
+      }
+    });
+  }
+
+  async function resetPassword(password) {
+    const client = getAuthClient();
+    if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
+    }
+
+    const { error } = await withTimeout(
+      client.auth.updateUser({ password }),
+      NETWORK_TIMEOUT_MS,
+      '重置密码超时'
+    );
+    if (error) throw error;
+    clearAuthActionParam();
+  }
+
+  return {
+    subscribe,
+    notify,
+    setSession,
+    setAuthModeState,
+    resetFlowState,
+    startCooldown,
+    syncProfileDraft,
+    setProfileDraftEmoji,
+    setProfileDraftFile,
+    releaseProfileDraft,
+    sendOtp,
+    sendResetLink,
+    submitAuthForm,
+    logoutSession,
+    saveProfile,
+    resetPassword
+  };
+})();
+
+const AuthUI = (() => {
+  function createModal(id, html) {
+    const modal = document.createElement('div');
+    modal.id = id;
+    modal.className = 'auth-modal';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('show'));
+    return modal;
+  }
+
+  function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.remove('show');
+    setTimeout(() => modal.remove(), 300);
+  }
+
+  AuthService.subscribe((_snapshot, change) => {
+    if (change.type === 'auth-mode' || change.type === 'auth-flow-reset') {
+      if (document.getElementById('auth-modal')) {
+        updateAuthModalUI();
+      }
+    }
+    if (change.type === 'otp-cooldown' && document.getElementById('auth-send-btn')) {
+      setOtpButtonLabel();
+    }
+    if (change.type === 'profile-draft' && document.getElementById('profile-avatar-preview')) {
+      refreshProfileAvatarPreview();
+    }
+    if (
+      change.type === 'session' ||
+      change.type === 'session-primed' ||
+      change.type === 'session-synced' ||
+      change.type === 'logout-local' ||
+      change.type === 'profile-saved-local'
+    ) {
+      if (typeof renderAuthUI === 'function') renderAuthUI();
+    }
+  });
+
+  return {
+    createModal,
+    closeModal
+  };
+})();
+
+function buildFallbackNickname(seed) {
+  return `觉者${100 + (hashSeed(seed || Date.now()) % 900)}`;
+}
+
+async function generateDefaultNickname(client) {
+  let candidateNumber = 100;
+
+  try {
+    const { count, error } = await client
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (!error) {
+      candidateNumber = 100 + (count || 0);
+    }
+  } catch (_error) {
+    candidateNumber = 100 + (Date.now() % 900);
+  }
+
+  for (let offset = 0; offset < 8; offset++) {
+    const nickname = `觉者${candidateNumber + offset}`;
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('id')
+        .eq('nickname', nickname)
+        .limit(1);
+
+      if (error || !Array.isArray(data) || data.length === 0) {
+        return nickname;
+      }
+    } catch (_error) {
+      return nickname;
+    }
+  }
+
+  return buildFallbackNickname(Date.now());
+}
+
+async function ensureNicknameAvailable(client, nickname, excludeUserId) {
+  const trimmedNickname = String(nickname || '').trim();
+  if (!trimmedNickname) {
+    throw new Error('昵称不能为空');
+  }
+
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, nickname')
+    .ilike('nickname', trimmedNickname)
+    .limit(12);
+
+  if (error) {
+    throw error;
+  }
+
+  const normalized = trimmedNickname.toLowerCase();
+  const conflict = (data || []).find((row) => row.id !== excludeUserId && String(row.nickname || '').trim().toLowerCase() === normalized);
+  if (conflict) {
+    throw new Error('昵称已存在，请换一个');
+  }
+}
+
+function buildLocalProfile(user) {
+  const nickname = user?.user_metadata?.nickname || currentProfile?.nickname || buildFallbackNickname(user?.id || user?.email);
+  const metadataAvatar = user?.user_metadata?.avatar_url || (user?.user_metadata?.avatar_emoji ? `emoji:${user.user_metadata.avatar_emoji}` : '');
+  const avatarEmoji = user?.user_metadata?.avatar_emoji || pickAvatarEmoji(user?.id || nickname);
+  return {
+    email: user?.email || '',
+    nickname,
+    avatar_url: normalizeAvatarValue(metadataAvatar || `emoji:${avatarEmoji}`, user?.id || nickname)
+  };
+}
+
+async function syncProfileAfterAuth(client, user) {
+  if (!client || !user?.id) return;
+
+  const localProfile = buildLocalProfile(user);
+  AuthService.setSession(user, { ...(currentProfile || {}), ...localProfile, id: user.id }, 'session');
+
+  try {
+    await withTimeout(
+      upsertProfileCompat(client, { id: user.id, email: user.email || '', nickname: localProfile.nickname }, localProfile.avatar_url, user.id),
+      NETWORK_TIMEOUT_MS,
+      '同步用户资料超时'
+    );
+  } catch (_e) {
+    // Keep UI usable even if profile sync is delayed upstream.
+  }
+
+  try {
+    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
+  } catch (_e) {
+    currentProfile = { ...(currentProfile || {}), ...localProfile, id: user.id };
+    AuthService.notify('session-synced');
+  }
+}
+
+/* 鈹€鈹€ 鍒濆鍖栵細妫€鏌ョ櫥褰曠姸鎬?鈹€鈹€ */
+async function initAuth() {
+  const client = getAuthClient();
+  if (!client?.auth) {
+    console.error('Supabase Client 未初始化，auth 模块未启动');
+    return;
+  }
+
+  try {
+    const { data: { session } } = await withTimeout(
+      client.auth.getSession(),
+      NETWORK_TIMEOUT_MS,
+      '读取登录状态超时'
+    );
+    if (session) {
+      await syncProfileAfterAuth(client, session.user);
+      if (shouldOpenPasswordReset()) {
+        openPasswordResetModal();
+      }
+    }
+    AuthService.notify('session-synced');
+  } catch (err) {
+    console.error(normalizeAuthErrorMessage(err?.message || '初始化登录状态失败'));
+    AuthService.notify('session-synced');
+  }
+
+  client.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY' && session?.user) {
+      await syncProfileAfterAuth(client, session.user);
+      openPasswordResetModal();
+      return;
+    }
+
+    if (session) {
+      await syncProfileAfterAuth(client, session.user);
+    } else {
+      AuthService.setSession(null, null, 'session');
+    }
+  });
+}
+
+/* 鈹€鈹€ 鍔犺浇鐢ㄦ埛 Profile 鈹€鈹€ */
+async function loadProfile() {
+  const client = getAuthClient();
+  if (!client || !currentUser) return;
+
+  const { data } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', currentUser.id)
+    .maybeSingle();
+
+  if (data) {
+    const inferredField = inferAvatarFieldFromProfile(data);
+    if (inferredField) {
+      resolvedProfileAvatarField = inferredField;
+      profileAvatarFieldResolved = true;
+    }
+    const metadataAvatar = buildLocalProfile(currentUser).avatar_url;
+    const normalizedAvatar = inferredField
+      ? getAvatarFromProfileRecord(data, currentUser.id)
+      : metadataAvatar;
+    currentProfile = { ...data, avatar_url: normalizedAvatar };
+    const originalAvatar = getAvatarFromProfileRecord({
+      avatar_url: data.avatar_url,
+      avatar: data.avatar,
+      avatar_emoji: data.avatar_emoji
+    }, currentUser.id);
+    if (normalizedAvatar !== originalAvatar) {
+      try {
+        await updateProfileCompat(client, currentUser.id, currentProfile.nickname || '匿名觉者', normalizedAvatar, currentUser.id);
+      } catch (_e) {
+        // ignore avatar normalization failure to avoid blocking auth flow
+      }
+    }
+    AuthService.notify('session-synced');
+    return;
+  }
+
+  const avatarEmoji = currentUser.user_metadata?.avatar_emoji || pickAvatarEmoji(currentUser.id);
+  const normalizedAvatar = normalizeAvatarValue(`emoji:${avatarEmoji}`, currentUser.id);
+  try {
+    await upsertProfileCompat(client, {
+      id: currentUser.id,
+      email: currentUser.email || '',
+      nickname: currentUser.user_metadata?.nickname || '匿名觉者'
+    }, normalizedAvatar, currentUser.id);
+  } catch (_e) {
+    // if profiles write fails, still keep auth usable with metadata fallback
+  }
+
+  const { data: fallbackProfile } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', currentUser.id)
+    .maybeSingle();
+
+  if (fallbackProfile) {
+    const fallbackAvatar = getAvatarFromProfileRecord(fallbackProfile, currentUser.id);
+    currentProfile = { ...fallbackProfile, avatar_url: fallbackAvatar };
+    AuthService.notify('session-synced');
+    return;
+  }
+
+  currentProfile = {
+    nickname: currentUser.user_metadata?.nickname || currentUser.email || '用户',
+    avatar_url: normalizedAvatar
+  };
+  AuthService.notify('session-synced');
+}
+
+/* 鈹€鈹€ 娓叉煋椤堕儴鐧诲綍鐘舵€?鈹€鈹€ */
+function renderAuthUI() {
+  const container = document.getElementById('auth-status');
+  if (!container) return;
+  container.innerHTML = AuthTemplates.authStatus();
+}
+
+function openAuthModal() {
+  const existing = document.getElementById('auth-modal');
+  if (existing) existing.remove();
+  AuthService.resetFlowState();
+  AuthUI.createModal('auth-modal', AuthTemplates.authModal());
+
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const codeInput = document.getElementById('auth-code');
+  if (emailInput) emailInput.addEventListener('input', updateAuthSubmitState);
+  if (passwordInput) passwordInput.addEventListener('input', updateAuthSubmitState);
+  if (codeInput) codeInput.addEventListener('input', updateAuthSubmitState);
+  setAuthMode('login');
+}
+
+function closeAuthModal() {
+  AuthUI.closeModal('auth-modal');
+  AuthService.resetFlowState();
+}
+
+function togglePasswordVisibility(inputId, trigger) {
+  const input = document.getElementById(inputId);
+  if (!input || !trigger) return;
+
+  const showPassword = input.type === 'password';
+  input.type = showPassword ? 'text' : 'password';
+  trigger.textContent = showPassword ? '🙈' : '👁';
+  trigger.setAttribute('aria-label', showPassword ? '隐藏密码' : '显示密码');
+}
+
+function setAuthMode(mode) {
+  AuthService.setAuthModeState(mode);
+  updateAuthModalUI();
+}
+
+function updateAuthModalUI() {
+  const loginTab = document.getElementById('auth-tab-login');
+  const registerTab = document.getElementById('auth-tab-register');
+  const subtitle = document.getElementById('auth-modal-sub');
+  const otpRow = document.getElementById('auth-otp-row');
+  const passwordInput = document.getElementById('auth-password');
+  const codeInput = document.getElementById('auth-code');
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const helperRow = document.getElementById('auth-helper-row');
+  const errorEl = document.getElementById('auth-error');
+  if (!loginTab || !registerTab || !subtitle || !otpRow || !passwordInput || !codeInput || !submitBtn || !errorEl || !helperRow) return;
+
+  const registerMode = authMode === 'register';
+  loginTab.classList.toggle('active', !registerMode);
+  registerTab.classList.toggle('active', registerMode);
+  subtitle.textContent = registerMode ? '登录后可获得更多权限' : '登录后可修改昵称';
+  otpRow.classList.toggle('is-hidden', !registerMode);
+  helperRow.classList.toggle('is-hidden', registerMode);
+  passwordInput.autocomplete = registerMode ? 'new-password' : 'current-password';
+  codeInput.required = registerMode;
+  submitBtn.textContent = getAuthSubmitLabel();
+  markAuthMessage('');
+  setOtpButtonLabel();
+  updateAuthSubmitState();
+}
+
+function updateAuthSubmitState() {
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const codeInput = document.getElementById('auth-code');
+  if (!submitBtn || !emailInput || !passwordInput || !codeInput) return;
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+  const code = codeInput.value.trim();
+  const registerMode = authMode === 'register';
+  submitBtn.disabled = !email || !password || (registerMode && !code);
+}
+
+function setOtpButtonLabel() {
+  const sendBtn = document.getElementById('auth-send-btn');
+  if (!sendBtn) return;
+  sendBtn.textContent = otpCooldownSeconds > 0 ? `${otpCooldownSeconds}s` : '发送验证码';
+  sendBtn.disabled = otpCooldownSeconds > 0;
+}
+
+function startOtpCooldown(seconds) {
+  AuthService.startCooldown(seconds);
+}
+
+function primeAuthenticatedUI(authedUser, overrideNickname) {
+  const localProfile = buildLocalProfile({
+    ...authedUser,
+    user_metadata: {
+      ...(authedUser?.user_metadata || {}),
+      ...(overrideNickname ? { nickname: overrideNickname } : {})
+    }
+  });
+  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
+
+  currentUser = {
+    ...authedUser,
+    user_metadata: {
+      ...(authedUser?.user_metadata || {}),
+      nickname: localProfile.nickname,
+      avatar_emoji: avatarEmoji,
+      avatar_url: localProfile.avatar_url
+    }
+  };
+  currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+  AuthService.notify('session-primed');
+  return localProfile;
+}
+
+async function ensureRegisterAccountAvailable(client, email) {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .limit(1);
+
+  if (!error && (data || []).length > 0) {
+    throw new Error('该邮箱已注册，请直接登录');
+  }
+}
+
+async function sendRegisterOtpCode() {
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const sendBtn = document.getElementById('auth-send-btn');
+  if (!emailInput || !passwordInput || !sendBtn) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+  markAuthMessage('');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '发送中...';
+
+  try {
+    await AuthService.sendOtp(email, password);
+    markAuthMessage('验证码已发送，请查收邮箱', true);
+  } catch (err) {
+    markAuthMessage(normalizeAuthErrorMessage(err?.message || '发送验证码失败'));
+    otpCooldownSeconds = 0;
+    setOtpButtonLabel();
+  }
+}
+
+async function sendPasswordResetLink() {
+  const emailInput = document.getElementById('auth-email');
+  if (!emailInput) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const forgotBtn = document.getElementById('auth-forgot-btn');
+  if (forgotBtn) {
+    forgotBtn.disabled = true;
+    forgotBtn.textContent = '发送中...';
+  }
+
+  try {
+    await AuthService.sendResetLink(email);
+    markAuthMessage('重置链接已发送，请查收邮箱', true);
+  } catch (err) {
+    markAuthMessage(normalizeAuthErrorMessage(err?.message || '发送重置链接失败'));
+  } finally {
+    if (forgotBtn) {
+      forgotBtn.disabled = false;
+      forgotBtn.textContent = '忘记密码？';
+    }
+  }
+}
+
+async function finishPasswordAuth(client, authedUser, overrideNickname) {
+  if (!authedUser?.id) return;
+
+  const localProfile = primeAuthenticatedUI(authedUser, overrideNickname);
+  const avatarEmoji = getEmojiFromAvatarValue(localProfile.avatar_url, authedUser.id);
+
+  await Promise.allSettled([
+    withTimeout(
+      upsertProfileCompat(
+        client,
+        {
+          id: authedUser.id,
+          email: authedUser.email || '',
+          nickname: localProfile.nickname
+        },
+        localProfile.avatar_url,
+        authedUser.id
+      ),
+      NETWORK_TIMEOUT_MS,
+      '同步用户资料超时'
+    ),
+    withTimeout(
+      client.auth.updateUser({
+        data: {
+          nickname: localProfile.nickname,
+          avatar_emoji: avatarEmoji,
+          avatar_url: localProfile.avatar_url
+        }
+      }),
+      NETWORK_TIMEOUT_MS,
+      '更新用户元数据超时'
+    )
+  ]);
+
+  try {
+    await withTimeout(loadProfile(), NETWORK_TIMEOUT_MS, '读取用户资料超时');
+  } catch (_error) {
+    currentProfile = { ...(currentProfile || {}), ...localProfile, id: authedUser.id };
+  }
+
+  AuthService.notify('session-synced');
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+  const codeInput = document.getElementById('auth-code');
+  const errorEl = document.getElementById('auth-error');
+  const submitBtn = document.getElementById('auth-submit-btn');
+  if (!emailInput || !passwordInput || !codeInput || !submitBtn || !errorEl) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+  const code = codeInput.value.trim();
+  if (!email || !password) {
+    errorEl.textContent = '请输入邮箱和密码';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = authMode === 'register' ? '验证中...' : '登录中...';
+  markAuthMessage('');
+
+  try {
+    const result = await AuthService.submitAuthForm({ email, password, code });
+    if (result.mode === 'register') {
+      setAuthMode('login');
+      emailInput.value = email;
+      passwordInput.value = password;
+      codeInput.value = '';
+      updateAuthSubmitState();
+      return;
+    }
+
+    if (result.data?.user) {
+      closeAuthModal();
     }
   } catch (err) {
     markAuthMessage(normalizeAuthErrorMessage(err?.message || '操作失败'));
@@ -986,18 +1305,7 @@ async function handleAuthSubmit(e) {
 }
 
 async function handleLogout() {
-  const client = getAuthClient();
-  currentUser = null;
-  currentProfile = null;
-  renderAuthUI();
-
-  if (!client?.auth) return;
-
-  try {
-    await withTimeout(client.auth.signOut(), 5000, '退出登录超时');
-  } catch (err) {
-    console.error('退出登录失败:', err);
-  }
+  return AuthService.logoutSession();
 }
 
 function openEditProfile() {
@@ -1005,53 +1313,8 @@ function openEditProfile() {
 
   const existing = document.getElementById('profile-modal');
   if (existing) existing.remove();
-
-  profileAvatarDraft = {
-    emoji: getEmojiFromAvatarValue(currentProfile?.avatar_url, currentUser.id),
-    file: null,
-    previewUrl: ''
-  };
-
-  const modal = document.createElement('div');
-  modal.id = 'profile-modal';
-  modal.className = 'auth-modal';
-  modal.innerHTML = `
-    <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
-    <div class="auth-modal-content profile-edit-content">
-      <button class="auth-modal-logout" onclick="confirmLogout()" title="退出登录" aria-label="退出登录">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-          <polyline points="16 17 21 12 16 7"></polyline>
-          <line x1="21" y1="12" x2="9" y2="12"></line>
-        </svg>
-      </button>
-      <button class="auth-modal-close" onclick="closeProfileModal()">✕</button>
-      <h3 class="profile-edit-title">编辑资料</h3>
-
-      <div class="profile-avatar-preview" id="profile-avatar-preview"></div>
-
-      <div class="auth-field">
-        <label>昵称</label>
-        <input type="text" id="profile-nickname" maxlength="20" value="${escapeAttr(currentProfile?.nickname || '')}">
-      </div>
-
-      <div class="profile-emoji-grid" id="profile-emoji-grid">
-        ${AVATAR_EMOJIS.map(emoji => `
-          <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
-        `).join('')}
-      </div>
-
-      <label class="profile-upload-btn">
-        上传头像图片
-        <input type="file" id="profile-avatar-file" accept="image/*" onchange="handleProfileAvatarFile(this)">
-      </label>
-
-      <p class="auth-error" id="profile-edit-error"></p>
-      <button type="button" class="auth-submit-btn" id="profile-save-btn" onclick="saveProfileChanges()">保存资料</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => modal.classList.add('show'));
+  AuthService.syncProfileDraft();
+  AuthUI.createModal('profile-modal', AuthTemplates.profileModal());
   refreshProfileAvatarPreview();
 }
 
@@ -1063,17 +1326,8 @@ async function confirmLogout() {
 }
 
 function closeProfileModal() {
-  const modal = document.getElementById('profile-modal');
-  if (modal) {
-    modal.classList.remove('show');
-    setTimeout(() => modal.remove(), 300);
-  }
-
-  if (profileAvatarDraft.previewUrl) {
-    URL.revokeObjectURL(profileAvatarDraft.previewUrl);
-  }
-  profileAvatarDraft.previewUrl = '';
-  profileAvatarDraft.file = null;
+  AuthUI.closeModal('profile-modal');
+  AuthService.releaseProfileDraft();
 }
 
 function refreshProfileAvatarPreview() {
@@ -1088,13 +1342,7 @@ function refreshProfileAvatarPreview() {
 }
 
 function selectProfileEmoji(emoji) {
-  profileAvatarDraft.emoji = emoji;
-  profileAvatarDraft.file = null;
-
-  if (profileAvatarDraft.previewUrl) {
-    URL.revokeObjectURL(profileAvatarDraft.previewUrl);
-    profileAvatarDraft.previewUrl = '';
-  }
+  AuthService.setProfileDraftEmoji(emoji);
 
   const input = document.getElementById('profile-avatar-file');
   if (input) input.value = '';
@@ -1117,86 +1365,22 @@ function handleProfileAvatarFile(input) {
     return;
   }
 
-  profileAvatarDraft.file = file;
-  if (profileAvatarDraft.previewUrl) URL.revokeObjectURL(profileAvatarDraft.previewUrl);
-  profileAvatarDraft.previewUrl = URL.createObjectURL(file);
-  refreshProfileAvatarPreview();
+  AuthService.setProfileDraftFile(file, URL.createObjectURL(file));
 }
 
 async function saveProfileChanges() {
-  const client = getAuthClient();
-  if (!client || !currentUser) return;
-
   const nicknameInput = document.getElementById('profile-nickname');
   const saveBtn = document.getElementById('profile-save-btn');
   const errorEl = document.getElementById('profile-edit-error');
   if (!nicknameInput || !saveBtn || !errorEl) return;
-
-  const nickname = nicknameInput.value.trim() || currentProfile?.nickname || buildFallbackNickname(currentUser.id);
   saveBtn.disabled = true;
   saveBtn.textContent = '保存中...';
   errorEl.textContent = '';
 
   try {
-    await ensureNicknameAvailable(client, nickname, currentUser.id);
-
-    let avatarValue = normalizeAvatarValue(`emoji:${profileAvatarDraft.emoji || pickAvatarEmoji(currentUser.id)}`, currentUser.id);
-
-    if (profileAvatarDraft.file) {
-      const ext = profileAvatarDraft.file.name.split('.').pop() || 'png';
-      const filePath = `avatars/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: uploadError } = await withTimeout(
-        client.storage
-          .from('comment-images')
-          .upload(filePath, profileAvatarDraft.file, { cacheControl: '3600', upsert: true }),
-        NETWORK_TIMEOUT_MS,
-        '头像上传超时'
-      );
-      if (uploadError) throw uploadError;
-
-      const { data: publicData } = client.storage.from('comment-images').getPublicUrl(filePath);
-      avatarValue = publicData.publicUrl;
-    }
-
-    const avatarEmoji = getEmojiFromAvatarValue(avatarValue, currentUser.id);
-
-    currentUser = {
-      ...(currentUser || {}),
-      user_metadata: {
-        ...((currentUser && currentUser.user_metadata) || {}),
-        nickname,
-        avatar_url: avatarValue,
-        avatar_emoji: avatarEmoji
-      }
-    };
-
-    currentProfile = { ...(currentProfile || {}), nickname, avatar_url: avatarValue, id: currentUser.id };
-    renderAuthUI();
+    const nickname = nicknameInput.value.trim() || currentProfile?.nickname || buildFallbackNickname(currentUser?.id);
+    await AuthService.saveProfile(nickname);
     closeProfileModal();
-
-    Promise.allSettled([
-      withTimeout(
-        updateProfileCompat(client, currentUser.id, nickname, avatarValue, currentUser.id),
-        NETWORK_TIMEOUT_MS,
-        '保存资料超时'
-      ),
-      withTimeout(
-        client.auth.updateUser({
-          data: {
-            nickname,
-            avatar_url: avatarValue,
-            avatar_emoji: avatarEmoji
-          }
-        }),
-        NETWORK_TIMEOUT_MS,
-        '更新用户元数据超时'
-      )
-    ]).then((results) => {
-      const rejected = results.find(result => result.status === 'rejected');
-      if (rejected) {
-        console.error('资料同步失败:', rejected.reason);
-      }
-    });
   } catch (err) {
     errorEl.textContent = normalizeAuthErrorMessage(err?.message || '保存失败');
   } finally {
@@ -1208,63 +1392,25 @@ async function saveProfileChanges() {
 function openPasswordResetModal() {
   const existing = document.getElementById('password-reset-modal');
   if (existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'password-reset-modal';
-  modal.className = 'auth-modal';
-  modal.innerHTML = `
-    <div class="auth-modal-backdrop" onclick="closePasswordResetModal()"></div>
-    <div class="auth-modal-content">
-      <button class="auth-modal-close" onclick="closePasswordResetModal()">✕</button>
-      <h3 class="profile-edit-title">重置密码</h3>
-      <p class="auth-modal-sub auth-modal-sub-main">请输入新的登录密码</p>
-      <div class="auth-field">
-        <label>新密码</label>
-        <div class="auth-input-wrap">
-          <input type="password" id="reset-password-input" placeholder="至少6位" autocomplete="new-password" minlength="6">
-          <button type="button" class="auth-password-toggle" onclick="togglePasswordVisibility('reset-password-input', this)" aria-label="显示密码">👁</button>
-        </div>
-      </div>
-      <p class="auth-error" id="reset-password-error"></p>
-      <button type="button" class="auth-submit-btn" id="reset-password-btn" onclick="submitPasswordReset()">保存新密码</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => modal.classList.add('show'));
+  AuthUI.createModal('password-reset-modal', AuthTemplates.passwordResetModal());
 }
 
 function closePasswordResetModal() {
-  const modal = document.getElementById('password-reset-modal');
-  if (!modal) return;
-  modal.classList.remove('show');
-  setTimeout(() => modal.remove(), 300);
+  AuthUI.closeModal('password-reset-modal');
 }
 
 async function submitPasswordReset() {
-  const client = getAuthClient();
   const passwordInput = document.getElementById('reset-password-input');
-  const errorEl = document.getElementById('reset-password-error');
   const submitBtn = document.getElementById('reset-password-btn');
-  if (!client?.auth || !passwordInput || !errorEl || !submitBtn) return;
+  if (!passwordInput || !submitBtn) return;
 
   const password = passwordInput.value.trim();
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    markAuthMessage(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`, false, 'reset-password-error');
-    return;
-  }
-
   submitBtn.disabled = true;
   submitBtn.textContent = '保存中...';
   markAuthMessage('', false, 'reset-password-error');
 
   try {
-    const { error } = await withTimeout(
-      client.auth.updateUser({ password }),
-      NETWORK_TIMEOUT_MS,
-      '重置密码超时'
-    );
-    if (error) throw error;
-    clearAuthActionParam();
+    await AuthService.resetPassword(password);
     closePasswordResetModal();
     alert('密码已重置，请使用新密码登录');
   } catch (err) {
@@ -1277,6 +1423,32 @@ async function submitPasswordReset() {
     }
   }
 }
+
+window.AuthService = AuthService;
+window.AuthUI = AuthUI;
+window.initAuth = initAuth;
+window.renderAuthUI = renderAuthUI;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.setAuthMode = setAuthMode;
+window.updateAuthModalUI = updateAuthModalUI;
+window.updateAuthSubmitState = updateAuthSubmitState;
+window.setOtpButtonLabel = setOtpButtonLabel;
+window.togglePasswordVisibility = togglePasswordVisibility;
+window.sendRegisterOtpCode = sendRegisterOtpCode;
+window.sendPasswordResetLink = sendPasswordResetLink;
+window.handleAuthSubmit = handleAuthSubmit;
+window.handleLogout = handleLogout;
+window.openEditProfile = openEditProfile;
+window.confirmLogout = confirmLogout;
+window.closeProfileModal = closeProfileModal;
+window.refreshProfileAvatarPreview = refreshProfileAvatarPreview;
+window.selectProfileEmoji = selectProfileEmoji;
+window.handleProfileAvatarFile = handleProfileAvatarFile;
+window.saveProfileChanges = saveProfileChanges;
+window.openPasswordResetModal = openPasswordResetModal;
+window.closePasswordResetModal = closePasswordResetModal;
+window.submitPasswordReset = submitPasswordReset;
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', initAuth);
