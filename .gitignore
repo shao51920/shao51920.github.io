@@ -62,3 +62,5 @@ htmlcov/
 *.tar.xz
 *.tar.zst
 ```
+# 彻底屏蔽 Qoder IDE 的私有生成物
+.qoder/

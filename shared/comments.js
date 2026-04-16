@@ -90,6 +90,35 @@ function ensureLiveProfileMapped() {
   }
 }
 
+// 设置 auth UI hook，确保在登录状态变化时更新评论区
+function setupCommentAuthHook() {
+  if (commentRenderAuthHooked) return;
+
+  // 如果 renderAuthUI 还未定义，延迟设置
+  if (typeof renderAuthUI !== 'function') {
+    setTimeout(setupCommentAuthHook, 100);
+    return;
+  }
+
+  const originalRenderAuthUI = renderAuthUI;
+  renderAuthUI = function () {
+    originalRenderAuthUI();
+    updateCommentInputState();
+    if (commentsLoaded) {
+      ensureLiveProfileMapped();
+      renderCommentsList();
+    }
+  };
+  commentRenderAuthHooked = true;
+
+  // 立即执行一次，确保当前状态正确
+  updateCommentInputState();
+  if (commentsLoaded) {
+    ensureLiveProfileMapped();
+    renderCommentsList();
+  }
+}
+
 // 确保用户 profile 已同步到数据库（用于外键约束）
 async function ensureProfileSynced(client) {
   if (!currentUser?.id) return;
@@ -295,18 +324,8 @@ function initComments() {
     });
   }
 
-  if (!commentRenderAuthHooked && typeof renderAuthUI === 'function') {
-    const originalRenderAuthUI = renderAuthUI;
-    renderAuthUI = function () {
-      originalRenderAuthUI();
-      updateCommentInputState();
-      if (commentsLoaded) {
-        ensureLiveProfileMapped();
-        renderCommentsList();
-      }
-    };
-    commentRenderAuthHooked = true;
-  }
+  // 设置 auth UI hook，确保在登录状态变化时更新评论区
+  setupCommentAuthHook();
 
   loadComments(pageType);
   updateCommentInputState();
@@ -417,27 +436,68 @@ function loadMoreComments() {
   renderCommentsList();
 }
 
-function renderCommentThread(comment) {
-  // 获取所有层级的回复（限制3层）
-  const allReplies = getCommentReplies(comment.id, 3);
-  const replyCount = allReplies.length;
-  const isExpanded = activeReplyTargetId === comment.id || comment._repliesExpanded;
+// 获取评论的直接回复（仅下一级）
+function getDirectReplies(parentId) {
+  return commentsState
+    .filter(item => item.parent_comment_id === parentId && !item.is_hidden)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
 
+// 递归渲染评论树（支持3层嵌套）
+function renderCommentTree(comment, level = 0, maxLevel = 3) {
+  const isExpanded = activeReplyTargetId === comment.id || comment._repliesExpanded;
+  
+  // 获取直接回复
+  const directReplies = getDirectReplies(comment.id);
+  const hasReplies = directReplies.length > 0;
+  
+  // 计算当前层级
+  const currentLevel = level;
+  
+  // 如果是顶级评论（level=0），需要显示回复折叠/展开
+  if (level === 0) {
+    const allNestedReplies = getCommentReplies(comment.id, maxLevel);
+    const totalReplyCount = allNestedReplies.length;
+    
+    return `
+      <div class="comment-thread" id="comment-thread-${comment.id}">
+        ${renderSingleComment(comment, 0, totalReplyCount)}
+        ${hasReplies ? `
+          <div class="comment-replies-toggle" onclick="toggleReplies('${comment.id}')">
+            <span class="replies-toggle-icon ${isExpanded ? 'expanded' : ''}">▼</span>
+            <span>${totalReplyCount} 条回复</span>
+          </div>
+          <div class="comment-replies ${isExpanded ? 'expanded' : 'collapsed'}">
+            ${directReplies.map(reply => renderCommentTree(reply, 1, maxLevel)).join('')}
+          </div>
+        ` : ''}
+        ${renderReplyComposer(comment.id, comment.page_type)}
+      </div>
+    `;
+  }
+  
+  // 嵌套回复（level >= 1）
+  // 如果超过最大层级，归入最近一层
+  if (currentLevel >= maxLevel) {
+    return renderSingleComment({ ...comment, _flattened: true }, maxLevel - 1, 0, true) + renderReplyComposer(comment.id, comment.page_type);
+  }
+  
+  // 渲染当前评论及其回复
   return `
-    <div class="comment-thread" id="comment-thread-${comment.id}">
-      ${renderSingleComment(comment, 0, replyCount)}
-      ${replyCount > 0 ? `
-        <div class="comment-replies-toggle" onclick="toggleReplies('${comment.id}')">
-          <span class="replies-toggle-icon ${isExpanded ? 'expanded' : ''}">▼</span>
-          <span>${replyCount} 条回复</span>
-        </div>
-        <div class="comment-replies ${isExpanded ? 'expanded' : 'collapsed'}">
-          ${allReplies.map(reply => renderSingleComment(reply, reply._level || 1, 0, reply._flattened)).join('')}
+    <div class="comment-nested-wrapper">
+      ${renderSingleComment(comment, currentLevel, hasReplies ? directReplies.length : 0)}
+      ${renderReplyComposer(comment.id, comment.page_type)}
+      ${hasReplies ? `
+        <div class="comment-nested-replies level-${currentLevel}">
+          ${directReplies.map(reply => renderCommentTree(reply, currentLevel + 1, maxLevel)).join('')}
         </div>
       ` : ''}
-      ${renderReplyComposer(comment.id, comment.page_type)}
     </div>
   `;
+}
+
+function renderCommentThread(comment) {
+  return renderCommentTree(comment, 0, 3);
 }
 
 function toggleReplies(commentId) {
