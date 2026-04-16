@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -43,39 +43,7 @@
       background: var(--void);
       color: var(--white-soft);
       font-family: 'Noto Serif SC', serif;
-      cursor: none;
-    }
-
-    /* ── 自定义光标 ── */
-    #cursor {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 12px;
-      height: 12px;
-      background: var(--gold-light);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 9999;
-      mix-blend-mode: screen;
-      transition: transform 0.1s ease, opacity 0.2s;
-      transform: translate(-50%, -50%);
-      box-shadow: var(--glow-gold);
-    }
-
-    #cursor-trail {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 36px;
-      height: 36px;
-      border: 1px solid rgba(201, 168, 76, 0.4);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 9998;
-      transform: translate(-50%, -50%);
-      transition: transform 0.25s ease, opacity 0.3s;
-      opacity: 0.6;
+      cursor: auto;
     }
 
     /* ── Canvas 星域 ── */
@@ -311,8 +279,9 @@
       height: 110vh;
       top: -5vh;
       left: -5vw;
-      background: url('逍遥游.webp') no-repeat center center;
-      background-size: cover;
+      display: block;
+      object-fit: cover;
+      object-position: center;
       animation: whaleSwim 60s ease-in-out infinite alternate;
       will-change: transform;
       transform: translate3d(0, 0, 0);
@@ -559,7 +528,7 @@
       font-size: 0.95rem;
       font-weight: 700;
       letter-spacing: 0.2em;
-      cursor: none;
+      cursor: pointer;
       position: relative;
       overflow: hidden;
       opacity: 0;
@@ -776,8 +745,6 @@
 <body>
 
   <!-- 光标 -->
-  <div id="cursor"></div>
-  <div id="cursor-trail"></div>
 
   <!-- 星空画布 -->
   <canvas id="starfield"></canvas>
@@ -789,7 +756,7 @@
 
   <!-- 鲸鱼背景 -->
   <div class="whale-bg">
-    <div class="whale-img"></div>
+    <img class="whale-img" src="逍遥游.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high" draggable="false">
   </div>
 
   <!-- 侧边光线 -->
@@ -907,42 +874,20 @@
   </main>
 
   <script>
-    const whaleImagePreload = new Image();
-    whaleImagePreload.decoding = 'async';
-    whaleImagePreload.src = '逍遥游.webp';
-    whaleImagePreload.onload = () => document.body.classList.add('whale-ready');
-    whaleImagePreload.onerror = () => document.body.classList.add('whale-ready');
-    setTimeout(() => document.body.classList.add('whale-ready'), 1800);
-
-    /* ────────────────────────────────
-       1. 自定义光标
-    ──────────────────────────────── */
-    const cursor = document.getElementById('cursor');
-    const trail = document.getElementById('cursor-trail');
-    let mx = 0, my = 0, tx = 0, ty = 0;
-
-    document.addEventListener('mousemove', e => {
-      mx = e.clientX; my = e.clientY;
-      cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
-    });
-
-    (function animTrail() {
-      tx += (mx - tx) * 0.12;
-      ty += (my - ty) * .12;
-      trail.style.transform = `translate(${tx}px, ${ty}px) translate(-50%, -50%)`;
-      requestAnimationFrame(animTrail);
-    })();
-
-    document.querySelectorAll('a, button').forEach(el => {
-      el.addEventListener('mouseenter', () => {
-        cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%) scale(2)`;
-        cursor.style.opacity = '0.6';
-      });
-      el.addEventListener('mouseleave', () => {
-        cursor.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%) scale(1)`;
-        cursor.style.opacity = '1';
-      });
-    });
+    const whaleImage = document.querySelector('.whale-img');
+    const revealWhale = () => document.body.classList.add('whale-ready');
+    if (whaleImage) {
+      if (whaleImage.complete && whaleImage.naturalWidth > 0) {
+        revealWhale();
+      } else {
+        whaleImage.addEventListener('load', revealWhale, { once: true });
+        whaleImage.addEventListener('error', revealWhale, { once: true });
+        if (typeof whaleImage.decode === 'function') {
+          whaleImage.decode().then(revealWhale).catch(() => {});
+        }
+      }
+    }
+    setTimeout(revealWhale, 1200);
 
     /* ────────────────────────────────
        2. 星空粒子
@@ -961,7 +906,7 @@
       if (typeof onViewportResize === 'function') onViewportResize();
     });
 
-    const STARS = 280;
+    const STARS = window.innerWidth < 768 ? 180 : 240;
     const stars = Array.from({ length: STARS }, () => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
@@ -989,7 +934,14 @@
       };
     }
 
+    let starsAnimating = false;
+
     function drawStars() {
+      starsAnimating = true;
+      if (document.hidden) {
+        starsAnimating = false;
+        return;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       stars.forEach(s => {
@@ -1076,7 +1028,13 @@
 
     // 让点旋转
     let dotAngle = 0;
+    let dotsAnimating = false;
     (function rotateDots() {
+      dotsAnimating = true;
+      if (document.hidden) {
+        dotsAnimating = false;
+        return;
+      }
       dotAngle += 0.005;
       runeDots.forEach((dot, i) => {
         const angle = (i / dotCount) * 2 * Math.PI + dotAngle;
@@ -1087,6 +1045,13 @@
       });
       requestAnimationFrame(rotateDots);
     })();
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (!starsAnimating) requestAnimationFrame(drawStars);
+        if (!dotsAnimating) requestAnimationFrame(rotateDots);
+      }
+    });
 
     /* ────────────────────────────────
        4. 打字机效果
@@ -1124,58 +1089,45 @@
     setTimeout(() => typeWriter(), 2600);
 
     /* ────────────────────────────────
-       5. 按钮光波点击特效
-    ──────────────────────────────── */
-    document.querySelectorAll('.enter-btn').forEach(btn => {
-      btn.addEventListener('click', function (e) {
-        const ripple = document.createElement('span');
-        const rect = this.getBoundingClientRect();
-        ripple.style.cssText = `
-          position:absolute;
-          width:300px;height:300px;
-          left:${e.clientX - rect.left - 150}px;
-          top:${e.clientY - rect.top - 150}px;
-          background:rgba(201,168,76,0.2);
-          border-radius:50%;
-          transform:scale(0);
-          animation:rippleAnim 0.8s ease-out forwards;
-          pointer-events:none;
-        `;
-        if (!document.getElementById('ripple-keyframes')) {
-          const style = document.createElement('style');
-          style.id = 'ripple-keyframes';
-          style.textContent = `@keyframes rippleAnim{to{transform:scale(1);opacity:0}}`;
-          document.head.appendChild(style);
-        }
-        this.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 800);
-      });
-    });
-
-    /* ────────────────────────────────
        6. 鼠标视差
     ──────────────────────────────── */
     const runeRingWrapper = document.querySelector('.rune-ring-wrapper');
     const titleZh = document.querySelector('.title-zh');
     let parallaxDX = 0;
     let parallaxDY = 0;
+    let parallaxFrame = 0;
 
-    document.addEventListener('mousemove', e => {
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      parallaxDX = (e.clientX - cx) / cx;
-      parallaxDY = (e.clientY - cy) / cy;
-    });
-
-    (function renderParallax() {
+    function renderParallax() {
+      parallaxFrame = 0;
       if (runeRingWrapper) {
         runeRingWrapper.style.transform = `translate(${parallaxDX * 8}px, ${parallaxDY * 8}px) scale(1)`;
       }
       if (titleZh) {
         titleZh.style.textShadow = `${parallaxDX * 10}px ${parallaxDY * 10}px 40px rgba(201,168,76,0.3)`;
       }
-      requestAnimationFrame(renderParallax);
-    })();
+    }
+
+    function queueParallaxRender() {
+      if (!parallaxFrame) {
+        parallaxFrame = requestAnimationFrame(renderParallax);
+      }
+    }
+
+    document.addEventListener('mousemove', e => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      parallaxDX = (e.clientX - cx) / cx;
+      parallaxDY = (e.clientY - cy) / cy;
+      queueParallaxRender();
+    }, { passive: true });
+
+    document.addEventListener('mouseleave', () => {
+      parallaxDX = 0;
+      parallaxDY = 0;
+      queueParallaxRender();
+    });
+
+    renderParallax();
   </script>
   <footer
     style="position: fixed; bottom: 1rem; width: 100%; text-align: center; font-size: 0.7rem; color: rgba(255,255,255,0.2); z-index: 5; font-family: 'Noto Serif SC', serif; letter-spacing: 0.3em; pointer-events: none;">
