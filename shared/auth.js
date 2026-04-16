@@ -358,6 +358,7 @@ const AuthTemplates = {
   },
 
   profileModal() {
+    const isAdmin = currentUser?.app_metadata?.role === 'admin' || currentUser?.app_metadata?.is_admin === true;
     return `
       <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
       <div class="auth-modal-content profile-edit-content">
@@ -385,8 +386,7 @@ const AuthTemplates = {
 
         <div class="profile-emoji-grid" id="profile-emoji-grid">
           ${AVATAR_EMOJIS.map((emoji, index) => `
-            <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}${index >= 12 ? ' is-extra' : ''}" 
-              style="${index >= 12 ? 'display:none' : ''}"
+            <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}${index >= 12 ? ' is-extra hidden' : ''}" 
               onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
           `).join('')}
         </div>
@@ -404,6 +404,7 @@ const AuthTemplates = {
             </svg>
             查看我的评论
           </button>
+          ${isAdmin ? `<a href="/admin/index.html" class="profile-admin-link">管理后台 →</a>` : ''}
         </div>
 
         <p class="auth-error" id="profile-edit-error"></p>
@@ -1086,7 +1087,7 @@ async function loadProfile() {
     }, currentUser.id);
     if (normalizedAvatar !== originalAvatar) {
       try {
-        await updateProfileCompat(client, currentUser.id, currentProfile.nickname || '匿名觉者', normalizedAvatar, currentUser.id);
+        await updateProfileCompat(client, currentUser.id, currentProfile.nickname || '匿名觉者', normalizedAvatar, currentUser.id, currentProfile.bio || '');
       } catch (_e) {
         // ignore avatar normalization failure to avoid blocking auth flow
       }
@@ -1483,13 +1484,13 @@ function toggleEmojiGrid() {
   if (!grid || !toggleBtn) return;
   
   const extras = grid.querySelectorAll('.is-extra');
-  const isExpanded = toggleBtn.textContent === '收起';
+  const isCurrentlyExpanded = toggleBtn.textContent === '收起';
   
   extras.forEach(el => {
-    el.style.display = isExpanded ? 'none' : 'block';
+    el.classList.toggle('hidden', isCurrentlyExpanded);
   });
   
-  toggleBtn.textContent = isExpanded ? '展开更多' : '收起';
+  toggleBtn.textContent = isCurrentlyExpanded ? '展开更多' : '收起';
 }
 
 function jumpToMyComments() {
@@ -1497,13 +1498,15 @@ function jumpToMyComments() {
   if (commentSection) {
     closeProfileModal();
     commentSection.scrollIntoView({ behavior: 'smooth' });
-    // 如果需要定位到发表框
     const inputArea = document.getElementById('comment-text');
     if (inputArea) setTimeout(() => inputArea.focus(), 600);
   } else {
-    // 如果当前页面没有评论区，跳转到灵性人格测试主页的评论区（假设作为主评论中心）
-    if (confirm('当前页面没有评论区，是否前往灵性人格测试页面查看？')) {
-      window.location.href = '../SoulLab/index.html#comments-section';
+    // 智能判断跳转路径
+    const isSubDir = window.location.pathname.includes('/SoulLab/') || window.location.pathname.includes('/ObjTest/') || window.location.pathname.includes('/Snow/');
+    const targetPath = isSubDir ? '../SoulLab/index.html#comments-section' : 'SoulLab/index.html#comments-section';
+    
+    if (confirm('当前页面没有评论区，是否前往主测试页面查看回复？')) {
+      window.location.href = targetPath;
     }
   }
 }

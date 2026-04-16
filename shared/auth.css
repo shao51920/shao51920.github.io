@@ -443,6 +443,10 @@
   background: rgba(167, 139, 250, 0.18);
 }
 
+.profile-emoji-option.hidden {
+  display: none !important;
+}
+
 @keyframes emojiGridExpand {
   from {
     opacity: 0;
@@ -500,6 +504,19 @@
   border-color: #a78bfa;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
+}
+
+.profile-admin-link {
+  color: rgba(167, 139, 250, 0.8);
+  font-size: 0.8rem;
+  text-decoration: none;
+  margin-left: 12px;
+  transition: all 0.2s;
+}
+
+.profile-admin-link:hover {
+  color: #a78bfa;
+  text-decoration: underline;
 }
 
 .profile-upload-btn {
