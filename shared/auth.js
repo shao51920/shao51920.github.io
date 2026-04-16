@@ -384,10 +384,16 @@ const AuthTemplates = {
         </div>
 
         <div class="profile-emoji-grid" id="profile-emoji-grid">
-          ${AVATAR_EMOJIS.map((emoji) => `
+          ${AVATAR_EMOJIS.slice(0, 10).map((emoji) => `
             <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
           `).join('')}
         </div>
+        <div class="profile-emoji-grid-collapsed" id="profile-emoji-grid-collapsed" style="display:none;">
+          ${AVATAR_EMOJIS.slice(10).map((emoji) => `
+            <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
+          `).join('')}
+        </div>
+        <button type="button" class="profile-emoji-toggle" id="profile-emoji-toggle" onclick="toggleEmojiGrid()">展开更多</button>
 
         <label class="profile-upload-btn">
           上传头像图片
@@ -1458,6 +1464,16 @@ function selectProfileEmoji(emoji) {
   refreshProfileAvatarPreview();
 }
 
+function toggleEmojiGrid() {
+  const collapsedGrid = document.getElementById('profile-emoji-grid-collapsed');
+  const toggleBtn = document.getElementById('profile-emoji-toggle');
+  if (!collapsedGrid || !toggleBtn) return;
+  
+  const isExpanded = collapsedGrid.style.display !== 'none';
+  collapsedGrid.style.display = isExpanded ? 'none' : 'flex';
+  toggleBtn.textContent = isExpanded ? '展开更多' : '收起';
+}
+
 function handleProfileAvatarFile(input) {
   const file = input.files && input.files[0];
   const errorEl = document.getElementById('profile-edit-error');
@@ -1583,6 +1599,7 @@ window.confirmLogout = confirmLogout;
 window.closeProfileModal = closeProfileModal;
 window.refreshProfileAvatarPreview = refreshProfileAvatarPreview;
 window.selectProfileEmoji = selectProfileEmoji;
+window.toggleEmojiGrid = toggleEmojiGrid;
 window.handleProfileAvatarFile = handleProfileAvatarFile;
 window.saveProfileChanges = saveProfileChanges;
 window.openPasswordResetModal = openPasswordResetModal;

@@ -669,7 +669,7 @@ function showUserProfilePopup(userId) {
   
   const name = liveProfile.nickname || '匿名用户';
   const avatarValue = liveProfile.avatar_url || '';
-  const bio = liveProfile.bio || '这个人很懒，还没有写签名~';
+  const bio = liveProfile.bio?.trim() || '这个人很懒，还没有写签名~';
   
   // 创建弹窗
   const popupId = 'user-profile-popup-' + Date.now();
