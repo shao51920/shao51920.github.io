@@ -284,6 +284,11 @@ function shouldOpenPasswordReset() {
   }
 }
 
+function isSupabaseLockStealError(error) {
+  const msg = String(error?.message || error || '');
+  return msg.includes('another request stole it') || msg.includes('Lock "') || msg.includes('lock:sb-');
+}
+
 const AuthTemplates = {
   authStatus() {
     if (currentUser) {
@@ -749,24 +754,29 @@ const AuthService = (() => {
     });
   }
 
-async function resetPassword(password) {
+  async function resetPassword(password) {
     const client = getAuthClient();
     if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
     if (password.length < MIN_PASSWORD_LENGTH) {
       throw new Error(`密码至少需要 ${MIN_PASSWORD_LENGTH} 位`);
     }
 
-    const { error } = await withTimeout(
-      client.auth.updateUser({ password }),
-      NETWORK_TIMEOUT_MS,
-      '重置密码超时'
-    );
-    
-    // 核心修改：捕获并忽略 Supabase 底层的 Lock 锁抢占报错，因为此时密码实质上已经修改成功
-    if (error && !String(error.message).includes('stole it') && !String(error.message).includes('Lock')) {
-      throw error;
+    try {
+      const { error } = await withTimeout(
+        client.auth.updateUser({ password }),
+        NETWORK_TIMEOUT_MS,
+        '重置密码超时'
+      );
+
+      if (error && !isSupabaseLockStealError(error)) {
+        throw error;
+      }
+    } catch (error) {
+      if (!isSupabaseLockStealError(error)) {
+        throw error;
+      }
     }
-    
+
     clearAuthActionParam();
   }
 
@@ -1457,4 +1467,3 @@ window.submitPasswordReset = submitPasswordReset;
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', initAuth);
-

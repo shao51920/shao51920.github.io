@@ -49,6 +49,11 @@ function isCommentLikesTableMissing(error) {
   return msg.includes("Could not find the table 'public.comment_likes'") || msg.includes('PGRST205');
 }
 
+function isCommentLikesPermissionError(error) {
+  const msg = String(error?.message || '');
+  return error?.code === '42501' || msg.includes('permission denied') || msg.includes('new row violates row-level security policy');
+}
+
 function isCommentSchemaMissing(error) {
   const msg = String(error?.message || '');
   return msg.includes("column of 'comments' in the schema cache") || msg.includes('PGRST204');
@@ -147,7 +152,7 @@ async function loadCommentLikes(client, comments) {
     .in('comment_id', commentIds);
 
   if (error) {
-    if (isCommentLikesTableMissing(error)) {
+    if (isCommentLikesTableMissing(error) || isCommentLikesPermissionError(error)) {
       return;
     }
     throw error;
@@ -571,6 +576,8 @@ async function toggleCommentLike(commentId) {
     console.error('点赞失败:', err);
     if (isCommentLikesTableMissing(err)) {
       alert('点赞功能未完成升级，请先执行 supabase-community-upgrade.sql。');
+    } else if (isCommentLikesPermissionError(err)) {
+      alert('点赞功能数据库权限未完成升级，请重新执行 supabase-community-upgrade.sql。');
     } else {
       alert(`点赞失败: ${err.message || '未知错误'}`);
     }

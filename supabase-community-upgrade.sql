@@ -13,6 +13,9 @@ create table if not exists public.comment_likes (
   primary key (comment_id, user_id)
 );
 
+grant select on table public.comment_likes to anon;
+grant select, insert, delete on table public.comment_likes to authenticated;
+
 create index if not exists idx_comment_likes_comment_id
   on public.comment_likes (comment_id, created_at desc);
 
