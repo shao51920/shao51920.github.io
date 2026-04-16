@@ -445,8 +445,6 @@ function getDirectReplies(parentId) {
 
 // 递归渲染评论树（支持3层嵌套）
 function renderCommentTree(comment, level = 0, maxLevel = 3) {
-  const isExpanded = activeReplyTargetId === comment.id || comment._repliesExpanded;
-  
   // 获取直接回复
   const directReplies = getDirectReplies(comment.id);
   const hasReplies = directReplies.length > 0;
@@ -458,6 +456,7 @@ function renderCommentTree(comment, level = 0, maxLevel = 3) {
   if (level === 0) {
     const allNestedReplies = getCommentReplies(comment.id, maxLevel);
     const totalReplyCount = allNestedReplies.length;
+    const isExpanded = activeReplyTargetId === comment.id || comment._repliesExpanded;
     
     return `
       <div class="comment-thread" id="comment-thread-${comment.id}">
@@ -479,21 +478,46 @@ function renderCommentTree(comment, level = 0, maxLevel = 3) {
   // 嵌套回复（level >= 1）
   // 如果超过最大层级，归入最近一层
   if (currentLevel >= maxLevel) {
-    return renderSingleComment({ ...comment, _flattened: true }, maxLevel - 1, 0, true) + renderReplyComposer(comment.id, comment.page_type);
+    // 三级回复（level=3）不显示回复按钮
+    return renderSingleComment({ ...comment, _flattened: true }, maxLevel - 1, 0, true, false);
   }
   
-  // 渲染当前评论及其回复
+  // 二级回复（level=1）：显示回复按钮，三级回复可折叠展开
+  if (currentLevel === 1) {
+    const isExpanded = comment._repliesExpanded !== false; // 默认展开
+    
+    return `
+      <div class="comment-nested-wrapper">
+        ${renderSingleComment(comment, currentLevel, hasReplies ? directReplies.length : 0, false, true)}
+        ${renderReplyComposer(comment.id, comment.page_type)}
+        ${hasReplies ? `
+          <div class="comment-nested-replies-toggle" onclick="toggleNestedReplies('${comment.id}')">
+            <span class="replies-toggle-icon ${isExpanded ? 'expanded' : ''}">▼</span>
+            <span>${directReplies.length} 条回复</span>
+          </div>
+          <div class="comment-nested-replies level-${currentLevel} ${isExpanded ? 'expanded' : 'collapsed'}">
+            ${directReplies.map(reply => renderCommentTree(reply, currentLevel + 1, maxLevel)).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  
+  // 三级回复（level=2）：不显示回复按钮，不显示折叠（因为已经在父级折叠）
   return `
     <div class="comment-nested-wrapper">
-      ${renderSingleComment(comment, currentLevel, hasReplies ? directReplies.length : 0)}
-      ${renderReplyComposer(comment.id, comment.page_type)}
-      ${hasReplies ? `
-        <div class="comment-nested-replies level-${currentLevel}">
-          ${directReplies.map(reply => renderCommentTree(reply, currentLevel + 1, maxLevel)).join('')}
-        </div>
-      ` : ''}
+      ${renderSingleComment(comment, currentLevel, 0, false, false)}
     </div>
   `;
+}
+
+// 切换二级回复下的三级回复展开/折叠
+function toggleNestedReplies(commentId) {
+  const comment = commentsState.find(c => c.id === commentId);
+  if (comment) {
+    comment._repliesExpanded = !comment._repliesExpanded;
+    renderCommentsList();
+  }
 }
 
 function renderCommentThread(comment) {
@@ -537,7 +561,7 @@ function renderReplyComposer(commentId, pageType) {
   `;
 }
 
-function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = false) {
+function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = false, showReplyBtn = true) {
   const profile = getCommentDisplayProfile(comment.user_id);
   const name = profile.nickname || '匿名用户';
   const avatarValue = profile.avatar_url || getProfileAvatarValue(profile);
@@ -563,6 +587,16 @@ function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = f
   // 根据层级设置类名
   const levelClass = level > 0 ? ` comment-item-level-${Math.min(level, 3)}` : '';
   const flattenedClass = isFlattened ? ' comment-item-flattened' : '';
+  
+  // 回复按钮（三级回复不显示）
+  const replyBtn = showReplyBtn ? `
+    <button class="comment-action-btn comment-reply-action-btn" onclick="toggleReplyComposer('${comment.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+      </svg>
+      <span>回复</span>
+    </button>
+  ` : '';
 
   return `
     <div class="comment-item${levelClass}${flattenedClass}" id="comment-${comment.id}" data-level="${level}">
@@ -583,14 +617,9 @@ function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = f
             </svg>
             ${likeCount > 0 ? `<span class="like-count">${likeCount}</span>` : ''}
           </button>
-          <button class="comment-action-btn comment-reply-action-btn" onclick="toggleReplyComposer('${comment.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
-            <span>回复</span>
-          </button>
+          ${replyBtn}
         </div>
-        ${renderReplyComposer(comment.id, comment.page_type)}
+        ${showReplyBtn ? renderReplyComposer(comment.id, comment.page_type) : ''}
       </div>
     </div>
   `;
