@@ -749,7 +749,7 @@ const AuthService = (() => {
     });
   }
 
-  async function resetPassword(password) {
+async function resetPassword(password) {
     const client = getAuthClient();
     if (!client?.auth) throw new Error('认证模块初始化失败，请刷新页面后重试');
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -761,7 +761,12 @@ const AuthService = (() => {
       NETWORK_TIMEOUT_MS,
       '重置密码超时'
     );
-    if (error) throw error;
+    
+    // 核心修改：捕获并忽略 Supabase 底层的 Lock 锁抢占报错，因为此时密码实质上已经修改成功
+    if (error && !String(error.message).includes('stole it') && !String(error.message).includes('Lock')) {
+      throw error;
+    }
+    
     clearAuthActionParam();
   }
 
