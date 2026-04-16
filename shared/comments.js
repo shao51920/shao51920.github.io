@@ -427,12 +427,19 @@ function renderReplyComposer(commentId, pageType) {
     `;
   }
 
+  // 如果没有传入 pageType，尝试从评论数据中查找
+  let targetPageType = pageType;
+  if (!targetPageType) {
+    const comment = commentsState.find(c => c.id === commentId);
+    targetPageType = comment?.page_type || window.currentPageType || 'unknown';
+  }
+
   return `
     <div class="comment-reply-panel">
       <textarea class="comment-reply-text" id="reply-text-${commentId}" placeholder="回复这条留言..." maxlength="300" rows="2"></textarea>
       <div class="comment-reply-actions">
         <button class="comment-inline-link" onclick="toggleReplyComposer('${commentId}')">取消</button>
-        <button class="comment-submit-btn comment-reply-submit" id="reply-submit-${commentId}" onclick="submitReply('${pageType}', '${commentId}')">回复</button>
+        <button class="comment-submit-btn comment-reply-submit" id="reply-submit-${commentId}" onclick="submitReply('${targetPageType}', '${commentId}')">回复</button>
       </div>
     </div>
   `;
@@ -491,6 +498,7 @@ function renderSingleComment(comment, level = 0, replyCount = 0, isFlattened = f
             <span>回复</span>
           </button>
         </div>
+        ${renderReplyComposer(comment.id, comment.page_type)}
       </div>
     </div>
   `;

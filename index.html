@@ -853,7 +853,7 @@
 
     <!-- 登录欢迎入口 -->
     <div id="home-greeting" class="home-auth-welcome show">
-      你好，欢迎<span class="home-auth-login-trigger" onclick="openAuthModal()">登录</span>
+      你好，欢迎<span class="home-auth-login-trigger" onclick="if(typeof openAuthModal==='function')openAuthModal();else alert('登录功能加载中，请稍后再试')">登录</span>
     </div>
 
     <!-- 测评入口 -->

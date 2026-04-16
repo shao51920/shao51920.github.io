@@ -250,10 +250,19 @@
 
 /* 点赞按钮样式 - 只显示心形图标 */
 .comment-like-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 10px;
   gap: 4px;
   min-width: 36px;
+  min-height: 32px;
   color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .comment-like-btn .heart-icon {
@@ -261,10 +270,13 @@
   height: 16px;
   transition: transform 0.2s ease;
   display: block;
+  fill: currentColor;
 }
 
 .comment-like-btn:hover {
   color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .comment-like-btn:hover .heart-icon {
@@ -273,9 +285,12 @@
 
 .comment-like-btn.active {
   color: #ff6b8a;
+  background: rgba(255, 107, 138, 0.15);
+  border-color: rgba(255, 107, 138, 0.35);
 }
 
 .comment-like-btn.active .heart-icon {
+  fill: #ff6b8a;
   filter: drop-shadow(0 0 4px rgba(255, 107, 138, 0.5));
 }
 
@@ -286,19 +301,31 @@
 
 /* 回复按钮样式 */
 .comment-reply-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 12px;
   gap: 6px;
+  min-height: 32px;
   color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .comment-reply-action-btn:hover {
   color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .comment-reply-action-btn svg {
   width: 14px;
   height: 14px;
   display: block;
+  fill: currentColor;
 }
 
 /* 回复折叠切换 */

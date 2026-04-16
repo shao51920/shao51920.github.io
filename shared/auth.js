@@ -1531,7 +1531,7 @@ function showWelcomeToast() {
     toast.classList.add('show');
   });
 
-  // 2秒后淡出
+  // 3秒后淡出
   setTimeout(() => {
     toast.classList.add('fade-out');
     setTimeout(() => {
@@ -1539,7 +1539,7 @@ function showWelcomeToast() {
         toast.parentNode.removeChild(toast);
       }
     }, 600);
-  }, 2000);
+  }, 3000);
 }
 
 window.AuthService = AuthService;
