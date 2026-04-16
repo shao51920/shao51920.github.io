@@ -361,54 +361,46 @@ const AuthTemplates = {
     const isAdmin = currentUser?.app_metadata?.role === 'admin' || currentUser?.app_metadata?.is_admin === true;
     return `
       <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
-      <div class="auth-modal-content profile-edit-content">
-        <button class="auth-modal-logout" onclick="confirmLogout()" title="退出登录" aria-label="退出登录">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <polyline points="16 17 21 12 16 7"></polyline>
-            <line x1="21" y1="12" x2="9" y2="12"></line>
-          </svg>
-        </button>
+      <div class="auth-modal-content profile-edit-content modern-profile">
         <button class="auth-modal-close" onclick="closeProfileModal()">✕</button>
-        <h3 class="profile-edit-title">编辑资料</h3>
-
-        <div class="profile-avatar-preview" id="profile-avatar-preview"></div>
-
-        <div class="auth-field">
-          <label>昵称</label>
-          <input type="text" id="profile-nickname" maxlength="20" value="${escapeAttr(currentProfile?.nickname || '')}">
+        
+        <div class="profile-header-group">
+          <div class="profile-avatar-wrapper">
+             <div class="profile-avatar-preview" id="profile-avatar-preview"></div>
+             <label class="avatar-edit-badge" title="上传头像">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <input type="file" id="profile-avatar-file" accept="image/*" style="display:none" onchange="handleProfileAvatarFile(this)">
+             </label>
+          </div>
+          <div class="profile-main-meta">
+            <input type="text" id="profile-nickname" class="minimal-input nickname-input" maxlength="20" placeholder="昵称" value="${escapeAttr(currentProfile?.nickname || '')}">
+            <input type="text" id="profile-bio" class="minimal-input bio-input" maxlength="100" placeholder="点击添加个人签名..." value="${escapeAttr(currentProfile?.bio || '')}">
+          </div>
         </div>
 
-        <div class="auth-field">
-          <label>签名</label>
-          <input type="text" id="profile-bio" maxlength="100" value="${escapeAttr(currentProfile?.bio || '')}" placeholder="写点什么介绍自己...">
+        <div class="profile-emoji-section">
+          <div class="section-divider"><span>或选择内置图标</span></div>
+          <div class="profile-emoji-grid hidden" id="profile-emoji-grid">
+            ${AVATAR_EMOJIS.map((emoji) => `
+              <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" 
+                onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
+            `).join('')}
+          </div>
+          <button type="button" class="profile-emoji-toggle" id="profile-emoji-toggle" onclick="toggleEmojiGrid()">展开图标选择</button>
         </div>
 
-        <div class="profile-emoji-grid" id="profile-emoji-grid">
-          ${AVATAR_EMOJIS.map((emoji, index) => `
-            <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}${index >= 12 ? ' is-extra hidden' : ''}" 
-              onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
-          `).join('')}
-        </div>
-        <button type="button" class="profile-emoji-toggle" id="profile-emoji-toggle" onclick="toggleEmojiGrid()">展开更多</button>
-
-        <label class="profile-upload-btn">
-          上传头像图片
-          <input type="file" id="profile-avatar-file" accept="image/*" onchange="handleProfileAvatarFile(this)">
-        </label>
-
-        <div class="profile-extra-actions">
-           <button type="button" class="profile-comment-jump-btn" onclick="jumpToMyComments()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            查看我的评论
+        <div class="profile-footer-actions">
+           <button type="button" class="sub-action-btn" onclick="jumpToMyComments()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            我的评论
           </button>
-          ${isAdmin ? `<a href="/admin/index.html" class="profile-admin-link">管理后台 →</a>` : ''}
+          ${isAdmin ? `<a href="/admin/index.html" class="sub-action-link">管理后台</a>` : ''}
+          <div class="flex-spacer"></div>
+          <button type="button" class="logout-link-btn" onclick="confirmLogout()">退出登录</button>
         </div>
 
         <p class="auth-error" id="profile-edit-error"></p>
-        <button type="button" class="auth-submit-btn" id="profile-save-btn" onclick="saveProfileChanges()">保存资料</button>
+        <button type="button" class="auth-submit-btn profile-save-btn" id="profile-save-btn" onclick="saveProfileChanges()">保存并同步</button>
       </div>
     `;
   },
@@ -794,7 +786,7 @@ const AuthService = (() => {
       withTimeout(
         updateProfileCompat(client, currentUser.id, nextNickname, avatarValue, currentUser.id, bio),
         NETWORK_TIMEOUT_MS,
-        '保存资料超时'
+        '保存同步到数据库超时'
       ),
       withTimeout(
         client.auth.updateUser({
@@ -806,7 +798,7 @@ const AuthService = (() => {
           }
         }),
         NETWORK_TIMEOUT_MS,
-        '更新用户元数据超时'
+        '更新身份元数据超时'
       )
     ]);
     
@@ -815,6 +807,9 @@ const AuthService = (() => {
       console.error('资料同步失败:', rejected.reason);
       throw rejected.reason;
     }
+
+    // 强制重新加载以确保所有缓存一致
+    await loadProfile();
   }
 
   async function resetPassword(password) {
@@ -1483,14 +1478,9 @@ function toggleEmojiGrid() {
   const toggleBtn = document.getElementById('profile-emoji-toggle');
   if (!grid || !toggleBtn) return;
   
-  const extras = grid.querySelectorAll('.is-extra');
-  const isCurrentlyExpanded = toggleBtn.textContent === '收起';
-  
-  extras.forEach(el => {
-    el.classList.toggle('hidden', isCurrentlyExpanded);
-  });
-  
-  toggleBtn.textContent = isCurrentlyExpanded ? '展开更多' : '收起';
+  const isCurrentlyHidden = grid.classList.contains('hidden');
+  grid.classList.toggle('hidden', !isCurrentlyHidden);
+  toggleBtn.textContent = isCurrentlyHidden ? '收起图标选择' : '展开图标选择';
 }
 
 function jumpToMyComments() {
