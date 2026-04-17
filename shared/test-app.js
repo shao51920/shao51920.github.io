@@ -290,10 +290,8 @@ function displaySoulLabResult(type) {
     return;
   }
 
-  // 这里的 ID 必须对应 index.html 中还原的静态结构
   const titleEl = document.getElementById('result-title');
   if (!titleEl) {
-    // 如果没有静态结构，则退回到动态生成模式（用于兜底）
     renderDynamicSoulLab(p, type);
     return;
   }
@@ -315,6 +313,9 @@ function displaySoulLabResult(type) {
   if (charImg && p.image) {
     charImg.src = p.image + "?t=" + new Date().getTime();
     charImg.alt = p.name;
+    // 增加大图点击事件
+    charImg.style.cursor = 'zoom-in';
+    charImg.onclick = () => openImageModal(charImg.src);
   }
 
   const tagsContainer = document.getElementById('result-tags');
@@ -323,7 +324,6 @@ function displaySoulLabResult(type) {
     tagsContainer.innerHTML = tags.map(t => `<span class="result-tag">#${t}</span>`).join('');
   }
 
-  // 动画逻辑
   setTimeout(() => {
     if (p.meters) {
        animateMeter('meter-mask', p.meters.mask || 50);
@@ -334,31 +334,23 @@ function displaySoulLabResult(type) {
   }, 300);
 }
 
-function renderDynamicSoulLab(p, type) {
-  const resContainer = document.getElementById('result-display');
-  if (!resContainer) return;
-  // 简化版的兜底动态生成
-  resContainer.innerHTML = `<div class="result-card"><h3>${p.name}</h3><p>${p.description}</p></div>`;
-}
-
 // 客体化测试详情展示
 function displayObjTestResult(score) {
   const tier = resultTiers.find(t => score >= t.minScore && score <= t.maxScore) || resultTiers[0];
   const resContainer = document.getElementById('result-display');
   if (!resContainer) return;
 
-  // 统一使用这种垂直轴线对称的高级感结构
   resContainer.innerHTML = `
     <div class="result-content">
       <div class="result-header" style="text-align: center; margin-bottom: 40px;">
         <div class="result-score-circle" style="width:110px; height:110px; border-radius:50%; border:3px solid ${tier.color}; display:inline-flex; align-items:center; justify-content:center; font-size:3rem; font-weight:800; color:${tier.color}; margin:0 auto 20px; font-family:var(--font-display); box-shadow: 0 0 30px ${tier.color}33;">${score}</div>
         <div class="result-type-label" style="opacity: 0.6;">ASSESSMENT CONCLUSION</div>
         <div class="result-title-group">
-           <h2 class="result-title" style="color: ${tier.color}; background: none; -webkit-text-fill-color: ${tier.color}; text-shadow: 0 0 15px ${tier.color}44;">${tier.title}</h2>
+           <h2 class="result-title" style="color: #ffffff; -webkit-text-fill-color: #ffffff; text-shadow: 0 4px 15px rgba(0,0,0,0.5);">${tier.title}</h2>
         </div>
       </div>
 
-      <div class="result-description" style="text-align: center; line-height: 2; margin-bottom: 35px; background: rgba(255,255,255,0.02); padding: 25px; border-radius: var(--radius-lg); border: 1px solid rgba(255,255,255,0.05);">
+      <div class="result-description" style="text-align: center; line-height: 2; margin-bottom: 35px; background: rgba(255,255,255,0.02); padding: 25px; border-radius: var(--radius-lg); border: 1px solid rgba(255,255,255,0.08); box-shadow: inset 0 0 20px rgba(255,255,255,0.02);">
         <div style="font-size: 0.75rem; color: var(--accent-1); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 12px; opacity: 0.8;">评估深度结论</div>
         <p style="margin:0; font-size: 1rem; color: var(--text-secondary);">${tier.description}</p>
       </div>
@@ -374,6 +366,39 @@ function displayObjTestResult(score) {
       </div>
     </div>
   `;
+}
+
+function openImageModal(src) {
+  let modal = document.getElementById('image-modal');
+  let modalImg = document.getElementById('modal-img');
+  
+  if (!modal) {
+    // 动态创建蒙层
+    modal = document.createElement('div');
+    modal.id = 'image-modal';
+    modal.className = 'image-modal';
+    modal.innerHTML = '<img id="modal-img" src="" alt="大图" /><div class="modal-close">✕ 关闭</div>';
+    modal.onclick = closeImageModal;
+    document.body.appendChild(modal);
+    modalImg = document.getElementById('modal-img');
+  }
+  
+  modalImg.src = src;
+  modal.style.display = 'flex';
+  setTimeout(() => {
+    modal.style.opacity = '1';
+    modal.classList.add('show-img');
+  }, 10);
+}
+
+function closeImageModal() {
+  const modal = document.getElementById('image-modal');
+  if (!modal) return;
+  modal.style.opacity = '0';
+  modal.classList.remove('show-img');
+  setTimeout(() => {
+    modal.style.display = 'none';
+  }, 300);
 }
 
 function animateMeter(fillId, value) {
