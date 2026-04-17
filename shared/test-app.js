@@ -192,6 +192,7 @@ function updateProgress() {
    Result Calculation
    ============================== */
 async function calculateResult() {
+  const pageType = getPageType();
   showPage('loading');
   
   // 模拟计算进度
@@ -199,6 +200,7 @@ async function calculateResult() {
   const messages = pageType === 'soullab' 
     ? ["正在连接星界...", "分析潜意识流...", "解构现实编码...", "生成觉醒画像..."]
     : ["正在收集数据...", "分析认知偏差...", "评估主体状态...", "生成系统结论..."];
+    
   let i = 0;
   const interval = setInterval(() => {
     if (progressTitle && messages[i]) progressTitle.textContent = messages[i];
@@ -207,7 +209,6 @@ async function calculateResult() {
   }, 800);
 
   // 计算分数
-  const pageType = getPageType();
   if (pageType === 'soullab') {
     // 维度计算逻辑
     scores = { E:0, I:0, S:0, N:0, T:0, F:0, J:0, P:0 };

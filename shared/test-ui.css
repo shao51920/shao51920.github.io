@@ -1011,7 +1011,7 @@ body {
 
 .result-title {
   font-family: var(--font-display);
-  font-size: clamp(1.3rem, 4.4vw, 1.9rem);
+  font-size: clamp(1.2rem, 3.8vw, 1.6rem);
   font-weight: 800;
   color: #fff;
   -webkit-text-fill-color: #fff;
@@ -1019,7 +1019,7 @@ body {
   -webkit-background-clip: unset;
   background-clip: unset;
   margin: 0;
-  line-height: 1; /* Reduced line-height */
+  line-height: 1.2;
   display: inline-block;
   letter-spacing: -0.01em;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -1519,9 +1519,127 @@ body {
 }
 
 /* ==============================
-   Selection
+   Result Details Components
    ============================== */
-::selection {
-  background: rgba(167, 139, 250, 0.3);
-  color: white;
+.result-card {
+  width: 100%;
+  max-width: 700px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  backdrop-filter: blur(20px);
+  margin-bottom: var(--space-2xl);
+  animation: cardReveal 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  text-align: left;
+}
+
+@keyframes cardReveal {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.result-score-circle {
+  width: 80px;
+  height: 80px;
+  border: 3px solid var(--accent-1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 800;
+  margin: 0 auto 12px;
+  font-family: var(--font-display);
+}
+
+.result-type-code {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 800;
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.result-tagline {
+  font-size: 1rem;
+  color: var(--accent-1);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.result-section {
+  margin-bottom: var(--space-lg);
+}
+
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-1);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+.section-content, .tier-desc, .tier-advice {
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xl);
+}
+
+.feature-list {
+  list-style: none;
+}
+
+.feature-list li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 6px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.feature-list li::before {
+  content: '✦';
+  position: absolute;
+  left: 0;
+  color: var(--accent-1);
+  font-size: 0.7rem;
+}
+
+.quote-section {
+  text-align: center;
+  padding-top: var(--space-lg);
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.spiritual-quote {
+  font-style: italic;
+  color: var(--accent-1);
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+@media (max-width: 600px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+  .result-card {
+    padding: var(--space-lg);
+  }
 }
