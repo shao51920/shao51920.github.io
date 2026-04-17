@@ -1582,9 +1582,8 @@ body {
 .result-title {
   font-size: 2.5rem;
   font-weight: 900;
-  background: linear-gradient(135deg, #fff 0%, var(--accent-1) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff; /* 强制改为纯白 */
+  text-shadow: 0 4px 15px rgba(0,0,0,0.5);
   margin: 0;
 }
 
@@ -1714,6 +1713,14 @@ body {
   color: var(--accent-1);
   font-weight: bold;
   margin-right: 10px;
+}
+
+/* 修正评论区被居中导致右移的问题 */
+.result-comments-shell {
+  text-align: left !important;
+  width: 100%;
+  max-width: 700px;
+  margin: 30px auto 0;
 }
 
 @media (max-width: 640px) {

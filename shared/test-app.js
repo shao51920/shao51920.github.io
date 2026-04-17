@@ -399,8 +399,116 @@ function restartTest() {
 }
 
 function shareResult() {
-    if (typeof showToast === 'function') showToast('正在生成专属海报，请稍候...');
-    // 这里如果需要 html2canvas 逻辑，可以在后续补充，目前保持原样
+  if (typeof showToast === 'function') showToast('正在生成专属海报，请稍候...');
+
+  if (typeof html2canvas === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => generatePoster();
+    document.head.appendChild(script);
+  } else {
+    generatePoster();
+  }
+}
+
+function generatePoster() {
+  const originalResult = document.querySelector('.result-content');
+  if (!originalResult) {
+    if (typeof showToast === 'function') showToast('未找到结果内容，请稍后再试');
+    return;
+  }
+
+  // 创建离屏包装器
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;background:#0a0a1a;padding:0;margin:0;z-index:-1;';
+
+  const clone = originalResult.cloneNode(true);
+
+  // 移除按钮和评论区
+  ['#comments-section', '.result-actions', '.result-comments-shell'].forEach(sel => {
+    const el = clone.querySelector(sel);
+    if (el) el.remove();
+  });
+
+  // 固定宽度
+  clone.style.cssText = 'width:680px;max-width:680px;padding:40px 30px;margin:0;box-sizing:border-box;background:#0a0a1a;';
+
+  // 确保标题颜色在截图中可见（针对 -webkit-text-fill-color 的兼容）
+  const titleEl = clone.querySelector('.result-title');
+  if (titleEl) {
+    titleEl.style.cssText = 'color:#ffffff;-webkit-text-fill-color:#ffffff;background:none;text-shadow:none;';
+  }
+
+  const imgEl = clone.querySelector('#character-img');
+
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
+  const doCapture = (scale = 2) => {
+    html2canvas(wrapper, {
+      backgroundColor: '#0a0a1a',
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      imageTimeout: 15000,
+      width: 680,
+      windowWidth: 680,
+      logging: false
+    }).then(canvas => {
+      document.body.removeChild(wrapper);
+      const imgData = canvas.toDataURL('image/png');
+
+      // 创建展示蒙层
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.3s;';
+
+      const hint = document.createElement('p');
+      hint.textContent = '长按图片保存，分享给朋友 ✨';
+      hint.style.cssText = 'color:rgba(255,255,255,0.85);margin-bottom:14px;font-size:14px;letter-spacing:1px;';
+
+      const img = document.createElement('img');
+      img.src = imgData;
+      img.style.cssText = 'max-width:90%;max-height:72vh;border-radius:14px;box-shadow:0 0 50px rgba(138,43,226,0.35);border:1px solid rgba(255,255,255,0.08);object-fit:contain;';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕ 关闭';
+      closeBtn.style.cssText = 'margin-top:18px;padding:9px 26px;background:rgba(255,255,255,0.08);color:white;border:1px solid rgba(255,255,255,0.18);border-radius:20px;cursor:pointer;font-size:14px;transition:background 0.2s;';
+      closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.18)';
+      closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.08)';
+      closeBtn.onclick = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 300); };
+
+      overlay.append(hint, img, closeBtn);
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.style.opacity = '1');
+      if (typeof showToast === 'function') showToast('海报生成完毕！');
+
+    }).catch(err => {
+      if (scale > 1.2) {
+        doCapture(1.2);
+        return;
+      }
+      if (document.body.contains(wrapper)) document.body.removeChild(wrapper);
+      console.error('海报生成失败:', err);
+      if (typeof showToast === 'function') showToast('生成失败，请重试或直接截图 📸');
+    });
+  };
+
+  // 预加载角色图以防跨域污染
+  if (imgEl && imgEl.src && !imgEl.src.startsWith('data:')) {
+    const preload = new Image();
+    preload.crossOrigin = 'anonymous';
+    preload.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = preload.naturalWidth; c.height = preload.naturalHeight;
+      c.getContext('2d').drawImage(preload, 0, 0);
+      try { imgEl.src = c.toDataURL('image/png'); } catch (e) {}
+      doCapture();
+    };
+    preload.onerror = doCapture;
+    preload.src = imgEl.src.split('?')[0] + '?t=' + Date.now();
+  } else {
+    doCapture();
+  }
 }
 
 function getDisplayNickname() {
