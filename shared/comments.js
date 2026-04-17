@@ -433,7 +433,7 @@ function renderSingleComment(comment, level = 0) {
           </div>
           ${isOwner ? `<button class="action-btn is-delete" onclick="deleteComment('${comment.id}', '${comment.page_type}')">删除</button>` : ''}
         </div>
-        ${renderReplyComposer(comment.id, comment.page_type, targetNickname)}
+        ${renderReplyComposer(comment.id, comment.page_type, name)}
       </div>
     </div>
   `;
