@@ -164,7 +164,6 @@ function initComments() {
   container.innerHTML = `
     <div class="comments-wrapper">
       <div class="comments-header">
-        <h3>留下你的想法</h3>
         <span class="comments-count" id="comments-count">加载中...</span>
       </div>
 
