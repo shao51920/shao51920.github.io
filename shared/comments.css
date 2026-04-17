@@ -157,6 +157,16 @@
   margin-left: 20px;
 }
 
+/* Explicit level indentation for deeply nested items */
+.comment-nested-thread.level-2 .comment-replies {
+  margin-left: 12px;
+}
+
+.comment-nested-thread.level-3 .comment-replies,
+.comment-nested-thread.level-4 .comment-replies {
+  margin-left: 6px;
+}
+
 .comment-item__avatar-box { flex-shrink: 0; }
 .comment-item__avatar {
   width: 40px;
@@ -168,6 +178,25 @@
   justify-content: center;
   font-size: 20px;
   overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.comment-item[data-level="2"] .comment-item__avatar,
+.comment-item[data-level="3"] .comment-item__avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.comment-reply-to {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  margin-right: 4px;
+}
+
+.mention-name {
+  color: var(--gold-light);
+  font-weight: 500;
 }
 
 .comment-item__main { flex: 1; min-width: 0; }

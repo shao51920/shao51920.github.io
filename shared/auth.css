@@ -443,12 +443,83 @@
   background: rgba(167, 139, 250, 0.18);
 }
 
-.profile-emoji-grid.hidden {
-  display: none !important;
+/* Profile Emoji Grid Expansion */
+.profile-emoji-grid-wrapper {
+  overflow: hidden;
+  max-height: 48px; /* Show exactly one row */
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 8px;
 }
 
-.profile-emoji-option.hidden {
-  display: none !important;
+.profile-emoji-grid-wrapper.is-expanded {
+  max-height: 280px; /* Large enough for full grid */
+}
+
+.profile-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  padding: 4px;
+}
+
+.profile-emoji-toggle {
+  background: transparent;
+  border: none;
+  color: var(--gold-light);
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  transition: opacity 0.3s;
+  width: 100%;
+  opacity: 0.7;
+}
+
+.profile-emoji-toggle:hover {
+  opacity: 1;
+}
+
+.profile-emoji-toggle svg {
+  transition: transform 0.3s ease;
+}
+
+/* Comment Page Selector Dialog Styles */
+.comment-selector-dialog {
+  background: #120820; 
+  border: 1px solid rgba(201,139,250,0.3); 
+  border-radius: 24px;
+  padding: 32px;
+  width: 340px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.comment-selector-title {
+  font-size: 1.15rem;
+  color: var(--gold-light);
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.btn-choice {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(201,139,250,0.2);
+  background: rgba(167, 139, 250, 0.08);
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 12px;
+}
+
+.btn-choice:hover {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(201,139,250,0.4);
+  transform: translateY(-2px);
 }
 
 /* ==============================

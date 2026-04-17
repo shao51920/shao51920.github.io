@@ -329,13 +329,16 @@ function renderCommentThread(comment) {
 
 function renderCommentThreadRecursive(comment, level = 1) {
   const replies = getDirectReplies(comment.id);
-  // 对于深层回复，默认展开或者不显示切换按钮直接显示
+  // 对于深层回复，如果嵌套过深（目前>3层），减少缩进或改变布局，防止移动端溢出
+  const nextLevel = level + 1;
+  const showRepliesInline = level >= 3; 
+
   return `
     <div class="comment-nested-thread level-${level}">
       ${renderSingleComment(comment, level)}
       ${replies.length > 0 ? `
-        <div class="comment-replies">
-          ${replies.map(r => renderCommentThreadRecursive(r, level + 1)).join('')}
+        <div class="comment-replies ${showRepliesInline ? 'deep-level' : ''}">
+          ${replies.map(r => renderCommentThreadRecursive(r, nextLevel)).join('')}
         </div>
       ` : ''}
     </div>
@@ -358,12 +361,22 @@ function toggleReplyComposer(commentId) {
 function renderReplyComposer(commentId, pageType) {
   if (activeReplyTargetId !== commentId) return '';
   if (!currentUser) return '<div class="comment-reply-panel is-login-hint">登录后即可回复</div>';
+  
+  // 延迟一帧滚动到回复框
+  setTimeout(() => {
+    const el = document.getElementById(`reply-text-${commentId}`);
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 100);
+
   return `
     <div class="comment-reply-panel">
       <textarea class="comment-reply-text" id="reply-text-${commentId}" placeholder="回复这条留言..." maxlength="300" rows="2"></textarea>
       <div class="comment-reply-actions">
         <button class="action-btn is-cancel" onclick="toggleReplyComposer('${commentId}')">取消</button>
-        <button class="comment-submit-btn is-small" onclick="submitReply('${pageType}', '${commentId}')">回复</button>
+        <button class="comment-submit-btn is-small" id="reply-btn-${commentId}" onclick="submitReply('${pageType}', '${commentId}')">回复</button>
       </div>
     </div>
   `;
@@ -379,8 +392,18 @@ function renderSingleComment(comment, level = 0) {
   const likeCount = getCommentLikeCount(comment.id);
   const avatarHtml = getAvatarNodeHtml(avatarValue, comment.user_id || 'guest', 'comment-item__avatar');
   
+  // 如果是回复，查找父评论作者名
+  let replyHint = '';
+  if (comment.parent_comment_id) {
+    const parent = commentsState.find(c => c.id === comment.parent_comment_id);
+    if (parent) {
+      const parentProfile = getCommentDisplayProfile(parent.user_id);
+      replyHint = `<span class="comment-reply-to">回复 <span class="mention-name">@${escapeHtml(parentProfile.nickname || '用户')}</span> : </span>`;
+    }
+  }
+
   return `
-    <div class="comment-item ${level > 0 ? 'is-reply' : ''}" id="comment-${comment.id}">
+    <div class="comment-item ${level > 0 ? 'is-reply' : ''}" id="comment-${comment.id}" data-level="${level}">
       <div class="comment-item__avatar-box">${avatarHtml}</div>
       <div class="comment-item__main">
         <div class="comment-item__header">
@@ -388,7 +411,9 @@ function renderSingleComment(comment, level = 0) {
           <span class="comment-item__time">${time}</span>
           ${comment.is_optimistic ? '<span class="comment-item__pending">发送中</span>' : ''}
         </div>
-        <div class="comment-item__content">${highlightMentions(escapeHtml(comment.content || ''))}</div>
+        <div class="comment-item__content">
+          ${replyHint}${highlightMentions(escapeHtml(comment.content || ''))}
+        </div>
         ${comment.image_url ? `<div class="comment-item__image"><img src="${escapeAttr(comment.image_url)}" onclick="openCommentImage(this.src)" loading="lazy"></div>` : ''}
         <div class="comment-item__footer">
           <div class="comment-item__actions">

@@ -380,13 +380,20 @@ const AuthTemplates = {
 
         <div class="profile-emoji-section">
           <div class="section-divider"><span>或选择内置图标</span></div>
-          <div class="profile-emoji-grid hidden" id="profile-emoji-grid">
-            ${AVATAR_EMOJIS.map((emoji) => `
-              <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" 
-                onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
-            `).join('')}
+          <div class="profile-emoji-grid-wrapper" id="profile-emoji-wrapper">
+             <div class="profile-emoji-grid" id="profile-emoji-grid">
+               ${AVATAR_EMOJIS.map((emoji) => `
+                 <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" 
+                   onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
+               `).join('')}
+             </div>
           </div>
-          <button type="button" class="profile-emoji-toggle" id="profile-emoji-toggle" onclick="toggleEmojiGrid()">展开图标选择</button>
+          <button type="button" class="profile-emoji-toggle" id="profile-emoji-toggle" onclick="toggleEmojiGrid()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 9l-7 7-7-7"/>
+            </svg>
+            <span>更多图标</span>
+          </button>
         </div>
 
         <div class="profile-footer-actions">
@@ -1474,13 +1481,15 @@ function selectProfileEmoji(emoji) {
 }
 
 function toggleEmojiGrid() {
-  const grid = document.getElementById('profile-emoji-grid');
+  const wrapper = document.getElementById('profile-emoji-wrapper');
   const toggleBtn = document.getElementById('profile-emoji-toggle');
-  if (!grid || !toggleBtn) return;
+  if (!wrapper || !toggleBtn) return;
   
-  const isCurrentlyHidden = grid.classList.contains('hidden');
-  grid.classList.toggle('hidden', !isCurrentlyHidden);
-  toggleBtn.textContent = isCurrentlyHidden ? '收起图标选择' : '展开图标选择';
+  const isExpanded = wrapper.classList.toggle('is-expanded');
+  const span = toggleBtn.querySelector('span');
+  if (span) span.textContent = isExpanded ? '收起图标' : '更多图标';
+  const svg = toggleBtn.querySelector('svg');
+  if (svg) svg.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
 async function jumpToMyComments() {
@@ -1495,9 +1504,7 @@ async function jumpToMyComments() {
     const { data, error } = await client
       .from('comments')
       .select('page_type')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .eq('user_id', currentUser.id);
 
     if (error) throw error;
 
@@ -1506,29 +1513,13 @@ async function jumpToMyComments() {
       return;
     }
 
-    const latestType = data[0].page_type;
-    const currentContainer = document.getElementById('comments-section');
-    const currentPageType = currentContainer ? currentContainer.dataset.page : null;
-
-    if (currentPageType === latestType && currentContainer && window.location.pathname.includes('comments.html')) {
-      closeProfileModal();
-      currentContainer.scrollIntoView({ behavior: 'smooth' });
+    const uniqueTypes = [...new Set(data.map(d => d.page_type))];
+    
+    if (uniqueTypes.length > 1) {
+      // 弹出模拟选择对话框
+      showCommentPageSelector(uniqueTypes);
     } else {
-      closeProfileModal();
-      let targetPath = '';
-      if (latestType === 'objtest') {
-        targetPath = '/ObjTest/comments.html';
-      } else {
-        targetPath = '/SoulLab/comments.html';
-      }
-
-      // 处理相对路径
-      const isSubDir = window.location.pathname.includes('/SoulLab/') || window.location.pathname.includes('/ObjTest/') || window.location.pathname.includes('/Snow/');
-      if (isSubDir) {
-        window.location.href = '..' + targetPath;
-      } else {
-        window.location.href = '.' + targetPath;
-      }
+      redirectToCommentPage(uniqueTypes[0]);
     }
   } catch (err) {
     alert('查询失败，请重试');
@@ -1536,6 +1527,66 @@ async function jumpToMyComments() {
     if (saveBtn) saveBtn.innerHTML = originalText;
   }
 }
+
+function showCommentPageSelector(types) {
+  const dialogId = 'comment-page-selector';
+  if (document.getElementById(dialogId)) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = dialogId;
+  overlay.className = 'auth-modal-overlay';
+  overlay.style.cssText = 'z-index: 5000; position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;';
+  
+  const labelMap = {
+    'soullab': '灵性人格测试',
+    'objtest': '自我客体化测评'
+  };
+
+  overlay.innerHTML = `
+    <div class="comment-selector-dialog">
+      <h3 class="comment-selector-title">请选择要查看的评论区</h3>
+      <div style="display:flex; flex-direction:column;">
+        ${types.map(t => `
+          <button class="btn-choice" 
+            onclick="redirectToCommentPage('${t}'); document.getElementById('${dialogId}').remove();">
+            ${labelMap[t] || t}
+          </button>
+        `).join('')}
+        <button class="auth-text-link" style="margin-top:10px; opacity:0.6; background:none; border:none; color:#fff; cursor:pointer;" 
+          onclick="document.getElementById('${dialogId}').remove()">取消</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function redirectToCommentPage(type) {
+  const currentContainer = document.getElementById('comments-section');
+  const currentPageType = currentContainer ? currentContainer.dataset.page : null;
+
+  if (currentPageType === type && currentContainer && window.location.pathname.includes('comments.html')) {
+    closeProfileModal();
+    currentContainer.scrollIntoView({ behavior: 'smooth' });
+  } else {
+    closeProfileModal();
+    let targetPath = '';
+    if (type === 'objtest') {
+      targetPath = '/ObjTest/comments.html';
+    } else {
+      targetPath = '/SoulLab/comments.html';
+    }
+
+    const isSubDir = window.location.pathname.includes('/SoulLab/') || window.location.pathname.includes('/ObjTest/') || window.location.pathname.includes('/Snow/') || window.location.pathname.includes('/admin/');
+    if (isSubDir) {
+      window.location.href = '..' + targetPath;
+    } else {
+      window.location.href = '.' + targetPath;
+    }
+  }
+}
+
+// 暴露函数到全局
+window.redirectToCommentPage = redirectToCommentPage;
 
 function handleProfileAvatarFile(input) {
   const file = input.files && input.files[0];
