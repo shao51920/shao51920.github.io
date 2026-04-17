@@ -90,7 +90,7 @@
 
 #comment-text::placeholder,
 .comment-reply-text::placeholder {
-  color: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.6);
   font-weight: 400;
 }
 
