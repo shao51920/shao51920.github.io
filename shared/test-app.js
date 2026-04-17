@@ -261,42 +261,47 @@ function finalizeResult(resultValue) {
    ============================== */
 // 人格测试详情展示
 function displaySoulLabResult(type) {
-  const personality = personalityTypes[type];
-  if (!personality) return;
+  // 兼容不同的变量命名
+  const dataStore = (typeof personalities !== 'undefined') ? personalities : (typeof personalityTypes !== 'undefined' ? personalityTypes : {});
+  const personality = dataStore[type];
+  
+  if (!personality) {
+    console.error('未找到人格数据:', type);
+    return;
+  }
 
   const resContainer = document.getElementById('result-display');
   if (!resContainer) return;
+
+  const tagline = personality.subtitle || personality.tagline || '';
+  const tags = personality.tags || (personality.traits ? [...personality.traits, ...(personality.weaknesses || [])] : []);
 
   resContainer.innerHTML = `
     <div class="result-card">
       <div class="result-header">
         <div class="result-type-code">${type}</div>
         <h2 class="result-title">${personality.name}</h2>
-        <div class="result-tagline">${personality.tagline}</div>
+        <div class="result-tagline">${tagline}</div>
       </div>
       
       <div class="result-section">
-        <h3 class="section-label">角色侧写</h3>
+        <h3 class="section-label">深度侧写</h3>
         <p class="section-content">${personality.description}</p>
       </div>
 
-      <div class="result-grid">
-        <div class="result-section">
-          <h3 class="section-label">觉醒特质</h3>
-          <ul class="feature-list">
-            ${personality.traits.map(t => `<li>${t}</li>`).join('')}
-          </ul>
-        </div>
-        <div class="result-section">
-          <h3 class="section-label">幻象盲区</h3>
-          <ul class="feature-list">
-            ${personality.weaknesses.map(w => `<li>${w}</li>`).join('')}
-          </ul>
+      <div class="result-section">
+        <h3 class="section-label">特质标签</h3>
+        <div class="result-tags">
+          ${tags.map(t => `<span class="result-tag">${t}</span>`).join('')}
         </div>
       </div>
 
       <div class="result-section quote-section">
         <p class="spiritual-quote">“ ${personality.quote} ”</p>
+      </div>
+      
+      <div class="result-mbti">
+         <span class="mbti-label">参考维度：</span>${personality.mbti || ''}
       </div>
     </div>
   `;

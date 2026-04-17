@@ -1218,7 +1218,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: var(--space-xl);
 }
 
@@ -1529,9 +1529,8 @@ body {
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
   backdrop-filter: blur(20px);
-  margin-bottom: var(--space-2xl);
+  margin: 0 auto var(--space-2xl);
   animation: cardReveal 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  text-align: left;
 }
 
 @keyframes cardReveal {
