@@ -16,6 +16,7 @@ const AVATAR_EMOJIS = [
 
 let profileAvatarDraft = {
   emoji: '🙂',
+  value: '',
   file: null,
   previewUrl: ''
 };
@@ -89,6 +90,12 @@ function normalizeAvatarValue(value, seed) {
   if (isEmojiAvatarValue(value)) return value;
   if (isUrlAvatarValue(value) && !isLegacyAvatarValue(value)) return value;
   return `emoji:${getEmojiFromAvatarValue(value, seed)}`;
+}
+
+function revokeDraftPreviewUrl(url) {
+  if (typeof url === 'string' && url.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function resolveAvatarSrc(value, seed) {
@@ -440,7 +447,7 @@ const AuthTemplates = {
           <div class="profile-emoji-grid-wrapper" id="profile-emoji-wrapper">
              <div class="profile-emoji-grid" id="profile-emoji-grid">
                ${AVATAR_EMOJIS.map((emoji) => `
-                 <button type="button" class="profile-emoji-option${emoji === profileAvatarDraft.emoji ? ' active' : ''}" 
+                 <button type="button" class="profile-emoji-option${isEmojiAvatarValue(profileAvatarDraft.value) && emoji === profileAvatarDraft.emoji ? ' active' : ''}" 
                    onclick="selectProfileEmoji('${emoji}')">${emoji}</button>
                `).join('')}
              </div>
@@ -557,19 +564,27 @@ const AuthService = (() => {
 
   function syncProfileDraft() {
     if (!currentUser) return;
+    const currentAvatarValue = normalizeAvatarValue(
+      currentProfile?.avatar_url
+        || currentUser?.user_metadata?.avatar_url
+        || (currentUser?.user_metadata?.avatar_emoji ? `emoji:${currentUser.user_metadata.avatar_emoji}` : ''),
+      currentUser.id
+    );
     profileAvatarDraft = {
-      emoji: getEmojiFromAvatarValue(currentProfile?.avatar_url, currentUser.id),
+      emoji: getEmojiFromAvatarValue(currentAvatarValue, currentUser.id),
+      value: currentAvatarValue,
       file: null,
-      previewUrl: ''
+      previewUrl: isUrlAvatarValue(currentAvatarValue) ? currentAvatarValue : ''
     };
     notify('profile-draft');
   }
 
   function setProfileDraftEmoji(emoji) {
     profileAvatarDraft.emoji = emoji;
+    profileAvatarDraft.value = `emoji:${emoji}`;
     profileAvatarDraft.file = null;
     if (profileAvatarDraft.previewUrl) {
-      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
+      revokeDraftPreviewUrl(profileAvatarDraft.previewUrl);
       profileAvatarDraft.previewUrl = '';
     }
     notify('profile-draft');
@@ -577,8 +592,9 @@ const AuthService = (() => {
 
   function setProfileDraftFile(file, previewUrl) {
     if (profileAvatarDraft.previewUrl) {
-      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
+      revokeDraftPreviewUrl(profileAvatarDraft.previewUrl);
     }
+    profileAvatarDraft.value = '';
     profileAvatarDraft.file = file;
     profileAvatarDraft.previewUrl = previewUrl;
     notify('profile-draft');
@@ -586,9 +602,10 @@ const AuthService = (() => {
 
   function releaseProfileDraft() {
     if (profileAvatarDraft.previewUrl) {
-      URL.revokeObjectURL(profileAvatarDraft.previewUrl);
+      revokeDraftPreviewUrl(profileAvatarDraft.previewUrl);
     }
     profileAvatarDraft.previewUrl = '';
+    profileAvatarDraft.value = '';
     profileAvatarDraft.file = null;
     notify('profile-draft');
   }
@@ -805,7 +822,14 @@ const AuthService = (() => {
     const nextNickname = nickname || currentProfile?.nickname || buildFallbackNickname(currentUser.id);
     await ensureNicknameAvailable(client, nextNickname, currentUser.id);
 
-    let avatarValue = normalizeAvatarValue(`emoji:${profileAvatarDraft.emoji || pickAvatarEmoji(currentUser.id)}`, currentUser.id);
+    let avatarValue = normalizeAvatarValue(
+      profileAvatarDraft.value
+        || currentProfile?.avatar_url
+        || currentUser?.user_metadata?.avatar_url
+        || (currentUser?.user_metadata?.avatar_emoji ? `emoji:${currentUser.user_metadata.avatar_emoji}` : '')
+        || `emoji:${profileAvatarDraft.emoji || pickAvatarEmoji(currentUser.id)}`,
+      currentUser.id
+    );
 
     if (profileAvatarDraft.file) {
       if (saveBtn) saveBtn.textContent = '正在上传图片...';
@@ -1555,8 +1579,10 @@ function refreshProfileAvatarPreview() {
 
   if (profileAvatarDraft.previewUrl) {
     preview.innerHTML = `<img class="profile-avatar-preview-img" src="${profileAvatarDraft.previewUrl}" alt="头像预览">`;
+  } else if (isUrlAvatarValue(profileAvatarDraft.value)) {
+    preview.innerHTML = `<img class="profile-avatar-preview-img" src="${escapeAttr(profileAvatarDraft.value)}" alt="澶村儚棰勮">`;
   } else {
-    preview.innerHTML = `<span class="profile-avatar-preview-emoji">${profileAvatarDraft.emoji}</span>`;
+    preview.innerHTML = `<span class="profile-avatar-preview-emoji">${getEmojiFromAvatarValue(profileAvatarDraft.value || `emoji:${profileAvatarDraft.emoji}`, currentUser?.id)}</span>`;
   }
 }
 

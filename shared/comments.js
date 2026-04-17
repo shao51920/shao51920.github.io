@@ -310,7 +310,7 @@ function getDirectReplies(parentId) {
 }
 
 function isRepliesExpanded(comment) {
-  return comment?._repliesExpanded !== false;
+  return comment?._repliesExpanded === true;
 }
 
 function renderRepliesBlock(comment, replies, level) {

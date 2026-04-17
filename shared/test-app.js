@@ -8,8 +8,11 @@ let scores = {};
 let toastHideTimer = null;
 
 const RESULT_VIEW_TABLE = 'result_views';
-const SOULLAB_BASE_OFFSET = 153;
-const OBJTEST_BASE_OFFSET = 118;
+const PARTICIPANT_COUNTER_START_AT = '2026-04-17T14:00:00.000Z';
+const PARTICIPANT_COUNTER_CONFIG = {
+  soullab: { baseCount: 417 },
+  objtest: { baseCount: 322 }
+};
 
 function getAppSupabaseClient() {
   if (window.supabaseClient && typeof window.supabaseClient.from === 'function') return window.supabaseClient;
@@ -57,12 +60,15 @@ function showToast(message, duration = 2600) {
 /* ==============================
    Participant Count
    ============================== */
+function getParticipantCounterConfig(pageType) {
+  return PARTICIPANT_COUNTER_CONFIG[pageType] || PARTICIPANT_COUNTER_CONFIG.soullab;
+}
+
 function renderParticipantCount(element, count) {
   if (!element) return;
 
   const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
-  const baseOffset = getPageType() === 'soullab' ? SOULLAB_BASE_OFFSET : OBJTEST_BASE_OFFSET;
-  const displayCount = safeCount + baseOffset;
+  const displayCount = safeCount;
   element.innerHTML = `已有 <span class="participant-number">${displayCount}</span> 人参与测试`;
 }
 
@@ -70,9 +76,10 @@ async function loadParticipantCount() {
   const client = getAppSupabaseClient();
   const pageType = getPageType();
   const countEl = document.getElementById(`${pageType}-participant-count`);
+  const { baseCount } = getParticipantCounterConfig(pageType);
   if (!countEl) return;
   if (!client) {
-    renderParticipantCount(countEl, 0);
+    renderParticipantCount(countEl, baseCount);
     return;
   }
 
@@ -80,13 +87,14 @@ async function loadParticipantCount() {
     const { count, error } = await client
       .from(RESULT_VIEW_TABLE)
       .select('*', { count: 'exact', head: true })
-      .eq('page_type', pageType);
+      .eq('page_type', pageType)
+      .gte('created_at', PARTICIPANT_COUNTER_START_AT);
 
     if (error) throw error;
-    renderParticipantCount(countEl, count || 0);
+    renderParticipantCount(countEl, baseCount + (count || 0));
   } catch (err) {
     console.error('Count load failed:', err);
-    renderParticipantCount(countEl, 0);
+    renderParticipantCount(countEl, baseCount);
   }
 }
 

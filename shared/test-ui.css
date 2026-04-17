@@ -825,6 +825,17 @@ body {
   animation: loadingTextFade 2s ease-in-out infinite;
 }
 
+.loading-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2.8vw, 1.3rem);
+  font-weight: 700;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+  color: rgba(241, 240, 255, 0.92);
+  text-shadow: 0 0 22px rgba(167, 139, 250, 0.14);
+  animation: loadingTitleBreath 2.8s ease-in-out infinite;
+}
+
 @keyframes loadingTextFade {
 
   0%,
@@ -834,6 +845,21 @@ body {
 
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes loadingTitleBreath {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.985);
+    letter-spacing: 0.05em;
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+    letter-spacing: 0.07em;
   }
 }
 
