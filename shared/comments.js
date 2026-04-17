@@ -358,22 +358,26 @@ function toggleReplyComposer(commentId) {
   renderCommentsList();
 }
 
-function renderReplyComposer(commentId, pageType) {
+function renderReplyComposer(commentId, pageType, targetName) {
   if (activeReplyTargetId !== commentId) return '';
   if (!currentUser) return '<div class="comment-reply-panel is-login-hint">登录后即可回复</div>';
   
-  // 延迟一帧滚动到回复框
+  const defaultText = targetName ? `@${targetName} ` : '';
+
+  // 延迟一帧滚动到回复框并设置焦点到末尾
   setTimeout(() => {
     const el = document.getElementById(`reply-text-${commentId}`);
     if (el) {
+      if (!el.value) el.value = defaultText;
       el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, 100);
 
   return `
     <div class="comment-reply-panel">
-      <textarea class="comment-reply-text" id="reply-text-${commentId}" placeholder="回复这条留言..." maxlength="300" rows="2"></textarea>
+      <textarea class="comment-reply-text" id="reply-text-${commentId}" placeholder="回复这条留言..." maxlength="300" rows="2">${defaultText}</textarea>
       <div class="comment-reply-actions">
         <button class="action-btn is-cancel" onclick="toggleReplyComposer('${commentId}')">取消</button>
         <button class="comment-submit-btn is-small" id="reply-btn-${commentId}" onclick="submitReply('${pageType}', '${commentId}')">回复</button>
@@ -394,11 +398,16 @@ function renderSingleComment(comment, level = 0) {
   
   // 如果是回复，查找父评论作者名
   let replyHint = '';
+  let targetNickname = '';
   if (comment.parent_comment_id) {
     const parent = commentsState.find(c => c.id === comment.parent_comment_id);
     if (parent) {
       const parentProfile = getCommentDisplayProfile(parent.user_id);
-      replyHint = `<span class="comment-reply-to">回复 <span class="mention-name">@${escapeHtml(parentProfile.nickname || '用户')}</span> : </span>`;
+      targetNickname = parentProfile.nickname || '用户';
+      // 如果内容本身没有以 @昵称 开头，则增加样式化的回复提示（兼容旧数据）
+      if (!comment.content || !comment.content.trim().startsWith(`@${targetNickname}`)) {
+        replyHint = `<span class="comment-reply-to">回复 <span class="mention-name">@${escapeHtml(targetNickname)}</span> : </span>`;
+      }
     }
   }
 
@@ -425,7 +434,7 @@ function renderSingleComment(comment, level = 0) {
           </div>
           ${isOwner ? `<button class="action-btn is-delete" onclick="deleteComment('${comment.id}', '${comment.page_type}')">删除</button>` : ''}
         </div>
-        ${renderReplyComposer(comment.id, comment.page_type)}
+        ${renderReplyComposer(comment.id, comment.page_type, targetNickname)}
       </div>
     </div>
   `;
