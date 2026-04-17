@@ -1504,45 +1504,10 @@ function toggleEmojiGrid() {
   if (svg) svg.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
-async function jumpToMyComments() {
+function jumpToMyComments() {
   if (!currentUser) return;
-  
-  const saveBtn = document.querySelector('.sub-action-btn[onclick="jumpToMyComments()"]');
-  const originalText = saveBtn ? saveBtn.innerHTML : '';
-  if (saveBtn) saveBtn.innerHTML = '查询中...';
-
-  const client = getAuthClient();
-  try {
-    const { data, error } = await withTimeout(
-      client
-        .from('comments')
-        .select('page_type')
-        .eq('user_id', currentUser.id),
-      15000,
-      '查询评论超时'
-    );
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      alert('您尚未评论');
-      return;
-    }
-
-    const uniqueTypes = [...new Set(data.map(d => d.page_type))];
-    
-    if (uniqueTypes.length > 1) {
-      closeProfileModal(); // 先退出资料页
-      showCommentPageSelector(uniqueTypes);
-    } else {
-      closeProfileModal(); // 先退出资料页
-      redirectToCommentPage(uniqueTypes[0]);
-    }
-  } catch (err) {
-    alert('查询失败，请重试');
-  } finally {
-    if (saveBtn) saveBtn.innerHTML = originalText;
-  }
+  closeProfileModal(); // 先退出资料页
+  showCommentPageSelector(['soullab', 'objtest']);
 }
 
 function showCommentPageSelector(types) {
@@ -1555,8 +1520,8 @@ function showCommentPageSelector(types) {
   overlay.style.cssText = 'z-index: 5000; position: fixed; inset: 0; background: rgba(8, 4, 20, 0.85); backdrop-filter: blur(15px); display: flex; align-items: center; justify-content: center;';
   
   const labelMap = {
-    'soullab': '灵性人格测试',
-    'objtest': '自我客体化测评'
+    'soullab': '灵性人格测试评论区',
+    'objtest': '自我客体化测评评论区'
   };
 
   overlay.innerHTML = `
