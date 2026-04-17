@@ -156,6 +156,10 @@
   margin-left: 20px;
 }
 
+.comment-replies.is-nested {
+  margin-top: 8px;
+}
+
 /* Explicit level indentation for deeply nested items */
 .comment-nested-thread.level-2 .comment-replies {
   margin-left: 12px;
@@ -291,10 +295,18 @@
   gap: 5px;
 }
 
+.comment-replies-toggle.is-nested {
+  margin-left: 14px;
+  margin-top: 2px;
+  margin-bottom: 8px;
+  font-size: 0.76rem;
+}
+
 .toggle-icon { transition: transform 0.2s; font-size: 10px; }
 .comment-replies-toggle.is-expanded .toggle-icon { transform: rotate(180deg); }
 
 .comment-replies.is-hidden { display: none; }
+.comment-replies.is-visible { display: block; }
 
 .comment-reply-panel {
   margin-top: 15px;

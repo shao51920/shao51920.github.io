@@ -160,6 +160,8 @@ function initComments() {
   if (!container) return;
   const pageType = container.dataset.page || 'unknown';
   activeCommentsPageType = pageType;
+  commentsCurrentPage = 1;
+  activeReplyTargetId = null;
 
   container.innerHTML = `
     <div class="comments-wrapper">
@@ -307,7 +309,28 @@ function getDirectReplies(parentId) {
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
 
-function renderCommentThread(comment) {
+function isRepliesExpanded(comment) {
+  return comment?._repliesExpanded !== false;
+}
+
+function renderRepliesBlock(comment, replies, level) {
+  if (!replies.length) return '';
+
+  const isExpanded = isRepliesExpanded(comment);
+  const toggleClassName = `comment-replies-toggle ${level > 0 ? 'is-nested' : ''} ${isExpanded ? 'is-expanded' : ''}`.trim();
+
+  return `
+    <div class="${toggleClassName}" onclick="toggleReplies('${comment.id}')">
+      <span class="toggle-icon">▼</span>
+      <span>${isExpanded ? '收起' : '展开'} ${replies.length} 条回复</span>
+    </div>
+    <div class="comment-replies ${level > 0 ? 'is-nested' : ''} ${isExpanded ? 'is-visible' : 'is-hidden'}">
+      ${replies.map(reply => renderCommentThreadRecursive(reply, level + 1)).join('')}
+    </div>
+  `;
+}
+
+function legacyRenderCommentThread(comment) {
   const replies = getDirectReplies(comment.id);
   const isExpanded = comment._repliesExpanded !== false;
   return `
@@ -326,7 +349,7 @@ function renderCommentThread(comment) {
   `;
 }
 
-function renderCommentThreadRecursive(comment, level = 1) {
+function legacyRenderCommentThreadRecursive(comment, level = 1) {
   const replies = getDirectReplies(comment.id);
   // 对于深层回复，如果嵌套过深（目前>3层），减少缩进或改变布局，防止移动端溢出
   const nextLevel = level + 1;
@@ -350,6 +373,28 @@ function toggleReplies(commentId) {
     comment._repliesExpanded = (comment._repliesExpanded === false);
     renderCommentsList();
   }
+}
+
+function renderCommentThread(comment) {
+  const replies = getDirectReplies(comment.id);
+  return `
+    <div class="comment-thread" id="comment-thread-${comment.id}">
+      ${renderSingleComment(comment, 0)}
+      ${renderRepliesBlock(comment, replies, 0)}
+    </div>
+  `;
+}
+
+function renderCommentThreadRecursive(comment, level = 1) {
+  const replies = getDirectReplies(comment.id);
+  const normalizedLevel = Math.min(level, 4);
+
+  return `
+    <div class="comment-nested-thread level-${normalizedLevel}">
+      ${renderSingleComment(comment, normalizedLevel)}
+      ${renderRepliesBlock(comment, replies, normalizedLevel)}
+    </div>
+  `;
 }
 
 function toggleReplyComposer(commentId) {
