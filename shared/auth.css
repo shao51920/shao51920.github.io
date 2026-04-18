@@ -37,12 +37,12 @@
 .auth-user {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 9px 2px 2px;
+  gap: 6px;
+  padding: 2px 7px 2px 2px;
   background: rgba(10, 10, 30, 0.55);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 24px;
+  border-radius: 20px;
   cursor: pointer;
   transition: all 0.3s;
   position: relative;
@@ -53,8 +53,8 @@
 }
 
 .auth-avatar {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: rgba(167, 139, 250, 0.15);
   object-fit: cover;
@@ -64,15 +64,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .auth-name {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 500;
-  max-width: 72px;
+  max-width: 62px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -426,9 +426,14 @@
 .profile-emoji-option {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
-  height: 38px;
+  height: 34px;
   background: rgba(255, 255, 255, 0.04);
-  font-size: 20px;
+  font-size: 17px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -446,7 +451,7 @@
 /* Profile Emoji Grid Expansion */
 .profile-emoji-grid-wrapper {
   overflow: hidden;
-  max-height: 48px; /* Show exactly one row */
+  max-height: 44px; /* Show exactly one row */
   transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   margin-bottom: 8px;
 }
